@@ -42,13 +42,18 @@ jobs:
           cd temp_core
           git checkout "$BRANCH"
           
+          # Activation du mode no-cone pour cibler des fichiers précis
+          git sparse-checkout set --no-cone
+          
           jq -r '."evoX-CoreOS".items[]' "$MANIFEST" | while read -r item; do
             git sparse-checkout add "$item"
           done
           
           jq -r '."evoX-CoreOS".items[]' "$MANIFEST" | while read -r item; do
-            mkdir -p "../$(dirname "$item")"
-            cp -r "$item" "../$item"
+            if [ -e "$item" ]; then
+              mkdir -p "../$(dirname "$item")"
+              cp -r "$item" "../$item"
+            fi
           done
           cd ..
           rm -rf temp_core
@@ -66,13 +71,18 @@ jobs:
           cd temp_webui
           git checkout "$BRANCH"
           
+          # Activation du mode no-cone pour cibler des fichiers précis
+          git sparse-checkout set --no-cone
+          
           jq -r '."evoX-CoreOS-WebUI".items[]' "$MANIFEST" | while read -r item; do
             git sparse-checkout add "$item"
           done
           
           jq -r '."evoX-CoreOS-WebUI".items[]' "$MANIFEST" | while read -r item; do
-            mkdir -p "../$(dirname "$item")"
-            cp -r "$item" "../$item"
+            if [ -e "$item" ]; then
+              mkdir -p "../$(dirname "$item")"
+              cp -r "$item" "../$item"
+            fi
           done
           cd ..
           rm -rf temp_webui
