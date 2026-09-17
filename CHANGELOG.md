@@ -1,5 +1,16 @@
 # 📜 Journal des Mises à Jour (Changelog)
 
+## Build du 17/09/2026 à 15:39
+* **PAYLOADS**
+  * `etaHEN` (2.5B) - *Nouveau*
+  * `PS5_Unified_Autoloader` (v0.1.4-955249d) - *Nouveau*
+  * `pldmgr` (v0.5.1) - *Nouveau*
+  * `ELF_Arsenal` (v1.6.22) - *Nouveau*
+  * `Kura` (v1.6.50) - *Nouveau*
+  * `PIZZA-HEN` (v2.00) - *Nouveau*
+  * `onionHEN` (v0.0.13) - *Nouveau*
+  * `etaHEN-2.6B` (Source-Fixe) - *Nouveau*
+
 ## Build du 16/09/2026 à 10:41
 * **PAYLOADS**
   * `ps5-web-file-manager` (v1.9) - *Mise à jour (Précédent: v1.8)*
