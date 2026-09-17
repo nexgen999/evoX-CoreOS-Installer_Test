@@ -2,6 +2,10 @@ name: evoX Auto Installer
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
 
 permissions:
   contents: write
