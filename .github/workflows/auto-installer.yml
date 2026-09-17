@@ -5,6 +5,7 @@ on:
 
 permissions:
   contents: write
+  workflows: write
 
 jobs:
   install-and-clean:
@@ -42,7 +43,6 @@ jobs:
           cd temp_core
           git checkout "$BRANCH"
           
-          # Activation du mode no-cone pour cibler des fichiers précis
           git sparse-checkout set --no-cone
           
           jq -r '."evoX-CoreOS".items[]' "$MANIFEST" | while read -r item; do
@@ -71,7 +71,6 @@ jobs:
           cd temp_webui
           git checkout "$BRANCH"
           
-          # Activation du mode no-cone pour cibler des fichiers précis
           git sparse-checkout set --no-cone
           
           jq -r '."evoX-CoreOS-WebUI".items[]' "$MANIFEST" | while read -r item; do
