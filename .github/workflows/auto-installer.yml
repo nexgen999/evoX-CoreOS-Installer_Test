@@ -1,44 +1,25 @@
-name: evoX Auto Installer
-
-on:
-  workflow_dispatch:
-
-permissions:
-  contents: write
-
-jobs:
-  install-and-clean:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout du dépôt cible
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          fetch-depth: 0
-
-      - name: Configuration de Git
+- name: Importation sélective - evoX-CoreOS
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          MANIFEST="$GITHUB_WORKSPACE/install-manifest.json"
+          if [ ! -f "$MANIFEST" ]; then
+            echo "Erreur : install-manifest.json introuvable à la racine !"
+            exit 1
+          fi
 
-      - name: Installation de jq
-        run: sudo apt-get install -y jq
+          REPO=$(jq -r '."evoX-CoreOS".repository' "$MANIFEST")
+          BRANCH=$(jq -r '."evoX-CoreOS".branch' "$MANIFEST")
 
-      - name: Importation sélective - evoX-CoreOS
-        run: |
-          REPO=$(jq -r '.["evoX-CoreOS"].repository' install-manifest.json)
-          BRANCH=$(jq -r '.["evoX-CoreOS"].branch' install-manifest.json)
+          echo "Clonage depuis : https://github.com/${REPO}.git (branche: ${BRANCH})"
           
           git clone --depth 1 --filter=blob:none --sparse "https://github.com/${REPO}.git" temp_core
           cd temp_core
           git checkout "$BRANCH"
           
-          jq -r '.["evoX-CoreOS"].items[]' ../install-manifest.json | while read -r item; do
+          jq -r '."evoX-CoreOS".items[]' "$MANIFEST" | while read -r item; do
             git sparse-checkout add "$item"
           done
           
-          jq -r '.["evoX-CoreOS"].items[]' ../install-manifest.json | while read -r item; do
+          jq -r '."evoX-CoreOS".items[]' "$MANIFEST" | while read -r item; do
             mkdir -p "../$(dirname "$item")"
             cp -r "$item" "../$item"
           done
@@ -47,96 +28,24 @@ jobs:
 
       - name: Importation sélective - evoX-CoreOS-WebUI
         run: |
-          REPO=$(jq -r '.["evoX-CoreOS-WebUI"].repository' install-manifest.json)
-          BRANCH=$(jq -r '.["evoX-CoreOS-WebUI"].branch' install-manifest.json)
+          MANIFEST="$GITHUB_WORKSPACE/install-manifest.json"
+          
+          REPO=$(jq -r '."evoX-CoreOS-WebUI".repository' "$MANIFEST")
+          BRANCH=$(jq -r '."evoX-CoreOS-WebUI".branch' "$MANIFEST")
+
+          echo "Clonage depuis : https://github.com/${REPO}.git (branche: ${BRANCH})"
           
           git clone --depth 1 --filter=blob:none --sparse "https://github.com/${REPO}.git" temp_webui
           cd temp_webui
           git checkout "$BRANCH"
           
-          jq -r '.["evoX-CoreOS-WebUI"].items[]' ../install-manifest.json | while read -r item; do
+          jq -r '."evoX-CoreOS-WebUI".items[]' "$MANIFEST" | while read -r item; do
             git sparse-checkout add "$item"
           done
           
-          jq -r '.["evoX-CoreOS-WebUI"].items[]' ../install-manifest.json | while read -r item; do
+          jq -r '."evoX-CoreOS-WebUI".items[]' "$MANIFEST" | while read -r item; do
             mkdir -p "../$(dirname "$item")"
             cp -r "$item" "../$item"
           done
           cd ..
           rm -rf temp_webui
-
-      - name: Création des fichiers dummy et dossiers requis
-        run: |
-          mkdir -p assets/icon
-          echo "Placez vos icônes et pegasus_metadata.json ici." > assets/icon/add_pegasus_metadata.json_here.txt
-
-          mkdir -p feed/apps
-          echo "Placez vos fichiers .opml pour les apps ici." > feed/apps/add_category.opml_here.txt
-
-          mkdir -p feed/ffpfsc
-          echo "Placez vos fichiers .opml pour ffpfsc ici." > feed/ffpfsc/add_category.opml_here.txt
-
-          mkdir -p feed/payloads
-          echo "Placez vos fichiers .opml pour les payloads ici." > feed/payloads/add_category.opml_here.txt
-
-          mkdir -p feed/pkg
-          echo "Placez vos fichiers .opml pour les PKG ici." > feed/pkg/add_category.opml_here.txt
-
-      - name: Adaptation dynamique du web/data/config.json
-        run: |
-          OWNER="${{ github.repository_owner }}"
-          REPO_NAME="${{ github.event.repository.name }}"
-          
-          PAGES_URL="https://${OWNER}.github.io/${REPO_NAME}"
-          RAW_URL="https://raw.githubusercontent.com/${OWNER}/${REPO_NAME}/main"
-
-          if [ -f "web/data/config.json" ]; then
-            tmp=$(mktemp)
-            jq --arg owner "$OWNER" \
-               --arg repo "$REPO_NAME" \
-               --arg pages "$PAGES_URL" \
-               --arg raw "$RAW_URL" '
-              .github.user = $owner |
-              .github.dataRepository = ($owner + "/" + $repo) |
-              .github.webuiRepository = ($owner + "/" + $repo) |
-              .sources.pldmgr = ($pages + "/json/payloads.json") |
-              .sources.json[0].url = ($pages + "/json/payloads.json") |
-              .sources.json[1].url = ($pages + "/json/pkg.json") |
-              .sources.json[2].url = ($pages + "/json/ffpfsc.json") |
-              .sources.json[3].url = ($pages + "/json/apps.json") |
-              .sources.changelog = ($raw + "/CHANGELOG.md") |
-              .releases.baseUrl = ("https://github.com/" + $owner + "/" + $repo + "/releases/download/latest/") |
-              .socials[0].url = ("https://github.com/" + $owner)
-            ' web/data/config.json > "$tmp" && mv "$tmp" web/data/config.json
-          fi
-
-      - name: Génération de README.md et instructions post-install
-        run: |
-          cat << 'EOF' > README.md
-          # evoX CoreOS & WebUI - Installation réussie
-
-          Votre environnement evoX est installé et pré-configuré.
-
-          ## Guide de démarrage rapide :
-          1. **Ajouter vos flux OPML** dans les sous-dossiers du répertoire `feed/`.
-          2. **Ajouter vos métadonnées** dans le dossier `assets/icon/`.
-          3. **Activer GitHub Pages** : Rendez-vous dans *Settings > Pages*, sélectionnez la branche `main` et enregistrez.
-          4. **Mettre à jour la boutique** : Exécutez l'action `.github/workflows/update.yml` depuis l'onglet **Actions**.
-
-          ---
-          *Ce fichier pourra être remplacé ultérieurement par le générateur automatique de README de evoX-CoreOS.*
-          *Une copie de sauvegarde de ces instructions reste disponible dans `post_install_instruction.md`.*
-          EOF
-
-          cp README.md post_install_instruction.md
-
-      - name: Nettoyage et suppression de l'installateur
-        run: |
-          rm -f install-manifest.json
-          rm -rf .github/workflows/auto-installer.yml
-
-      - name: Validation et commit sur le dépôt
-        run: |
-          git add -A
-          git commit -m "feat: installation automatique evoX-CoreOS & WebUI + nettoyage"
-          git push origin HEAD:${{ github.ref_name }}
