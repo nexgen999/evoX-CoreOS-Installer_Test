@@ -2,14 +2,6 @@ name: evoX Auto Installer
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-      - master
-
-permissions:
-  contents: write
-  actions: write
 
 jobs:
   install-and-clean:
@@ -19,7 +11,7 @@ jobs:
       - name: Checkout du dépôt cible
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.GH_PAT }}
           fetch-depth: 0
 
       - name: Configuration de Git
