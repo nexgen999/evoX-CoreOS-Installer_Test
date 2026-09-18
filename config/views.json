@@ -1,0 +1,40 @@
+{
+  "home": {
+    "available": [
+      "cards",
+      "compact",
+      "list",
+      "masonry"
+    ],
+    "default": "cards",
+    "cards": {
+      "columns_desktop": 4,
+      "image_ratio": "16/9",
+      "show_tags": true,
+      "show_links": true
+    },
+    "compact": {
+      "columns_desktop": 5,
+      "image_ratio": "3/1",
+      "show_tags": false,
+      "show_links": true
+    },
+    "list": {
+      "show_images": true,
+      "show_tags": true,
+      "show_description": true
+    },
+    "masonry": {
+      "columns_desktop": 4,
+      "show_tags": true
+    }
+  },
+  "category": {
+    "default": "cards",
+    "available": [
+      "cards",
+      "list",
+      "masonry"
+    ]
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "fonts": {
+    "google": {
+      "enabled": true,
+      "families": [
+        "Inter:wght@400;500;600;700;800",
+        "Orbitron:wght@500;600;700"
+      ]
+    },
+    "body": "'Inter', sans-serif",
+    "display": "'Orbitron', sans-serif"
+  },
+  "colors": {
+    "bg": "#020814",
+    "panel": "#061326",
+    "panel_alt": "#091a31",
+    "text": "#edf6ff",
+    "muted": "#91a8bf",
+    "primary": "#169cff",
+    "primary_2": "#005ee8",
+    "border": "rgba(39,145,255,.30)",
+    "success": "#35c759"
+  },
+  "background": {
+    "mode": "radial",
+    "image_url": "",
+    "overlay_opacity": 0.82,
+    "grid": true,
+    "scanlines": false
+  }
+}

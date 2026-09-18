@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "reveal_on_scroll": true,
+  "hover_lift": true,
+  "hover_glow": true,
+  "cursor_glow": true,
+  "smooth_scroll": true,
+  "category_scroll_buttons": true,
+  "card_image_zoom": true,
+  "background_grid": true,
+  "reduced_motion_respect": true,
+  "transition_ms": 220
+}
