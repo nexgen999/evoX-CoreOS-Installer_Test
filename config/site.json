@@ -1,0 +1,32 @@
+{
+  "site_name": "nexgen",
+  "title": "nexgen — Projects & Open Source",
+  "description": "Portfolio personnel GitHub — homebrew, développement, web et open source.",
+  "language": "fr",
+  "logo": "assets/nexgen-logo.png",
+  "github_profile_url": "https://github.com/nexgen999",
+  "default_route": "home",
+  "default_view": "cards",
+  "show_category_counts": true,
+  "show_project_count": true,
+  "footer_text": "© 2026 nexgen — Code • Play • Create • Open Source",
+  "external": {
+    "open_links_new_tab": true
+  },
+  "features": {
+    "search": true,
+    "tag_filters": true,
+    "project_details": true,
+    "gallery": true,
+    "related_projects": true,
+    "github_badges": true,
+    "github_import": true,
+    "category_pages": true,
+    "markdown_docs": true,
+    "theme_switcher": true,
+    "favorites": true,
+    "recent_projects": true,
+    "share_buttons": true,
+    "copy_project_link": true
+  }
+}

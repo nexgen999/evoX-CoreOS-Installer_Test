@@ -1,0 +1,12 @@
+{
+  "enabled": true,
+  "username": "nexgen999",
+  "endpoint": "https://api.github.com/users/{username}/repos?per_page=100&sort=updated",
+  "include_forks": false,
+  "include_archived": true,
+  "auto_category": "other",
+  "image_template": "https://opengraph.githubassets.com/1/{full_name}",
+  "default_tags_from_topics": true,
+  "show_import_button": true,
+  "note": "L'import fonctionne côté navigateur. Il ne modifie pas automatiquement le fichier projects.json : utilisez Export JSON après vérification."
+}

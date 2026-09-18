@@ -1,0 +1,52 @@
+{
+  "items": [
+    {
+      "id": "home",
+      "label": "Accueil",
+      "icon": {
+        "type": "fa",
+        "value": "fa-solid fa-house"
+      }
+    },
+    {
+      "id": "projects",
+      "label": "Mes projets",
+      "icon": {
+        "type": "fa",
+        "value": "fa-solid fa-grid-2"
+      }
+    },
+    {
+      "id": "categories",
+      "label": "Catégories",
+      "icon": {
+        "type": "fa",
+        "value": "fa-solid fa-layer-group"
+      }
+    },
+    {
+      "id": "favorites",
+      "label": "Favoris",
+      "icon": {
+        "type": "fa",
+        "value": "fa-solid fa-star"
+      }
+    },
+    {
+      "id": "about",
+      "label": "À propos",
+      "icon": {
+        "type": "fa",
+        "value": "fa-regular fa-user"
+      }
+    },
+    {
+      "id": "documentation",
+      "label": "Documentation",
+      "icon": {
+        "type": "fa",
+        "value": "fa-regular fa-file-lines"
+      }
+    }
+  ]
+}
