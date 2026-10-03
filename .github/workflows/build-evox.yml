@@ -134,7 +134,7 @@ jobs:
                           fh.write("\n" + css_override)
                       print(f"[OK] CSS personnalisé injecté dans {p}")
 
-          # Patch des composants React (Header + Titres)
+          # Patch des composants React (Header + Titres) sans casser la syntaxe JSX
           for root, _, files in os.walk('frontend/src'):
               for f in files:
                   if f.endswith(('.jsx', '.tsx', '.js', '.ts')):
@@ -146,13 +146,13 @@ jobs:
                       code = code.replace('PS5 Payload Manager', app_name)
                       code = code.replace('PLDMGR', logo_badge)
                       
-                      # Remplacement de l'icône SVG du Header par la balise img de icon0.png
-                      if 'HardDrive' in code or 'Terminal' in code or 'Cpu' in code or 'Layers' in code:
-                          code = code.replace('<HardDrive', '<img src="/icon0.png" className="w-8 h-8 rounded-lg mr-2 inline-block" alt="icon" /><!-- <HardDrive')
-                          code = code.replace('<Terminal', '<img src="/icon0.png" className="w-8 h-8 rounded-lg mr-2 inline-block" alt="icon" /><!-- <Terminal')
-                          code = code.replace('<Cpu', '<img src="/icon0.png" className="w-8 h-8 rounded-lg mr-2 inline-block" alt="icon" /><!-- <Cpu')
-                          if '<!--' in code and '/>' in code:
-                              code = code.replace('/>', '/> -->', 1)
+                      # Remplacement propre des icônes SVG dans le JSX
+                      img_tag = '<img src="/icon0.png" className="w-8 h-8 rounded-lg mr-2 inline-block" alt="logo" />'
+                      
+                      # Évite d'injecter des commentaires HTML dans du JSX
+                      code = code.replace('<HardDrive className="w-8 h-8 text-sky-400" />', img_tag)
+                      code = code.replace('<HardDrive className="w-8 h-8" />', img_tag)
+                      code = code.replace('<HardDrive />', img_tag)
 
                       if code != orig_code:
                           with open(p, 'w', encoding='utf-8') as fh:
