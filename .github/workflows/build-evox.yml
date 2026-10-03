@@ -71,24 +71,28 @@ jobs:
         with:
           node-version: 20
 
-      - name: "Remplacement des Icônes Personnalisées (frontend/public)"
+      - name: "Remplacement Strict de assets/icon0.png & Icônes Frontend"
         run: |
           cd workspace
-          if [ -d "../custom_icons" ]; then
-            echo "Copie des icônes depuis custom_icons/ vers frontend/public/..."
-            cp -rf ../custom_icons/* frontend/public/
-          elif [ -d "custom_icons" ]; then
-            cp -rf custom_icons/* frontend/public/
-          fi
-
           if [ -n "$CUSTOM_ICON_URL" ]; then
-            echo "Téléchargement de l'icône depuis $CUSTOM_ICON_URL..."
+            echo "--> Conversion URL GitHub Blob vers Raw..."
             RAW_ICON_URL=$(echo "$CUSTOM_ICON_URL" | sed 's|github.com/|raw.githubusercontent.com/|' | sed 's|/blob/|/|')
-            curl -sSL "$RAW_ICON_URL" -o frontend/public/icon.png || curl -sSL "$CUSTOM_ICON_URL" -o frontend/public/icon.png
-          fi
+            
+            echo "--> Téléchargement de l'icône depuis : $RAW_ICON_URL"
+            curl -sSL "$RAW_ICON_URL" -o /tmp/custom_icon.png
 
-          echo "Icônes actives dans frontend/public/ :"
-          ls -lh frontend/public/
+            # 1. Remplacement direct de assets/icon0.png
+            if [ -f "assets/icon0.png" ]; then
+              cp -f /tmp/custom_icon.png assets/icon0.png
+              echo "[OK] assets/icon0.png remplacé."
+            fi
+
+            # 2. Écrasement global dans assets/ et frontend/
+            find assets/ -type f \( -name "*.png" -o -name "*.ico" \) -exec cp -f /tmp/custom_icon.png {} \;
+            find frontend/ -type f \( -name "*.png" -o -name "*.ico" -o -name "*.svg" \) -exec cp -f /tmp/custom_icon.png {} \;
+            
+            echo "[OK] Toutes les icônes du projet ont été écrasées."
+          fi
 
       - name: "Patch du Noyau C, config.c, assets/param.json & include/pldmgr.h"
         run: |
@@ -175,17 +179,17 @@ jobs:
           print("Patchs C terminés avec succès !")
           PY_EOF
 
-      - name: "Compilation Frontend & Injection Thème dans dist"
+      - name: "Compilation Frontend & Injection Thème Forcée dans JS/dist"
         run: |
           cd workspace
 
-          echo "--> Compilation du Frontend avec npm..."
+          echo "--> Step 1: Compilation du Frontend..."
           cd frontend
           npm install
           npm run build
           cd ..
 
-          echo "--> Injection du thème CSS & textes directement dans frontend/dist..."
+          echo "--> Step 2: Injection JS/CSS Forcée post-build..."
           python3 - << 'PY_EOF'
           import os, glob, re
 
@@ -201,49 +205,67 @@ jobs:
           border_card = env.get('BORDER_CARD', '#1E293B')
           card_version_color = env.get('CARD_VERSION_COLOR', '#38bdf8')
 
+          # Injection CSS globale ultra-stricte avec !important
+          raw_css = f"""
+          html, body, #root, main {{ background-color: {bg_canvas} !important; }}
+          aside, nav, [class*="sidebar"], [class*="bg-slate-9"], [class*="bg-slate-8"] {{ background-color: {sidebar_bg} !important; }}
+          
+          .bg-blue-600, .bg-sky-500, .bg-sky-600, .bg-blue-500,
+          button[class*="bg-blue"], button[class*="bg-sky"],
+          div[class*="bg-blue"], div[class*="bg-sky"],
+          span[class*="bg-blue"], span[class*="bg-sky"] {{
+            background-color: {active_pill_bg} !important;
+            color: {active_pill_text} !important;
+          }}
+
+          [class*="rounded-xl"], [class*="rounded-lg"], [class*="border-slate"] {{
+            background-color: {card_bg} !important;
+            border-color: {border_card} !important;
+          }}
+
+          .text-sky-400, .text-blue-400, [class*="text-sky-"], [class*="text-blue-"] {{
+            color: {card_version_color} !important;
+          }}
+          """
+
           dist_index = 'frontend/dist/index.html'
           if os.path.isfile(dist_index):
               with open(dist_index, 'r', encoding='utf-8') as fh:
                   content = fh.read()
               
-              css_block = f"""<style id="evox-override">
-                html, body {{ background-color: {bg_canvas} !important; }}
-                aside, nav, .sidebar {{ background-color: {sidebar_bg} !important; }}
-                .bg-blue-600, .bg-sky-500, .bg-sky-600, [class*="bg-blue-"], [class*="bg-sky-"] {{
-                  background-color: {active_pill_bg} !important;
-                  color: {active_pill_text} !important;
-                }}
-                .text-sky-400, .text-blue-400 {{
-                  color: {card_version_color} !important;
-                }}
-                .bg-slate-800, .bg-slate-900, [class*="bg-card"] {{
-                  background-color: {card_bg} !important;
-                  border-color: {border_card} !important;
-                }}
-              </style>"""
-              
-              content = content.replace('</head>', css_block + '</head>')
+              style_tag = f'<style id="evox-force">{raw_css}</style>'
+              content = content.replace('</head>', style_tag + '</head>')
               content = re.sub(r'<title>.*?</title>', f'<title>{app_name}</title>', content)
               
               with open(dist_index, 'w', encoding='utf-8') as fh:
                   fh.write(content)
-              print("[OK] Thème injecté dans frontend/dist/index.html")
 
+          # Auto-injection du style au chargement JS du bundle React
           for root, _, files in os.walk('frontend/dist'):
               for f in files:
-                  if f.endswith(('.js', '.css', '.html')):
-                      p = os.path.join(root, f)
+                  p = os.path.join(root, f)
+                  if f.endswith('.js'):
                       with open(p, 'r', encoding='utf-8', errors='ignore') as fh:
-                          c = fh.read()
-                      nc = c.replace('PS5 Payload Manager', app_name)
-                      nc = nc.replace('PLDMGR', logo_badge)
-                      nc = nc.replace('8084', env.get('HTTP_PORT', '8085'))
-                      if nc != c:
-                          with open(p, 'w', encoding='utf-8') as fh:
-                              fh.write(nc)
+                          js_content = fh.read()
+                      
+                      js_injection = f"""
+                      (function(){{
+                        var s = document.createElement('style');
+                        s.innerHTML = `{raw_css}`;
+                        if(document.head) document.head.appendChild(s);
+                      }})();
+                      """
+                      js_content = js_injection + js_content
+                      js_content = js_content.replace('PS5 Payload Manager', app_name)
+                      js_content = js_content.replace('PLDMGR', logo_badge)
+                      
+                      with open(p, 'w', encoding='utf-8') as fh:
+                          fh.write(js_content)
+
+          print("[OK] Thème et injections JS/CSS terminés dans frontend/dist/")
           PY_EOF
 
-          echo "--> Régénération des assets C depuis le dist/ patché..."
+          echo "--> Step 3: Régénération des assets C..."
           if [ -f "tools/gen_assets.py" ]; then
             python3 tools/gen_assets.py || true
           fi
