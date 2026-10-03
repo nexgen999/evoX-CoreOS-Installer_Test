@@ -11,10 +11,6 @@ on:
         description: "Version du binaire"
         required: false
         default: "6.6.6"
-      port:
-        description: "Port HTTP du serveur PS5"
-        required: false
-        default: "8085"
 
 permissions:
   contents: write
@@ -31,7 +27,6 @@ jobs:
       TITLE_ID: "EVOX00001"
       CUSTOM_ICON_URL: "https://raw.githubusercontent.com/nexgen999/evoX-CoreOS-Installer_Test/main/assets/icon0.png"
       VERSION: "${{ github.event.inputs.version || '6.6.6' }}"
-      HTTP_PORT: "${{ github.event.inputs.port || '8085' }}"
       REPO_URL: "https://nexgen999.github.io/evoX-CoreOS/json/payloads.json"
       BUILD_STRING: "evoX-CoreOS v6.6.6 by nexgen999 (custom build)"
       LOGO_BADGE_TEXT: "COREOS"
@@ -109,7 +104,6 @@ jobs:
           param_title = env.get('PARAM_TITLE_NAME', app_name)
           title_id = env.get('TITLE_ID', 'EVOX00001')
           version = env.get('VERSION', '6.6.6')
-          http_port = env.get('HTTP_PORT', '8085')
           repo_url = env.get('REPO_URL', '')
 
           cfg_autoload_enabled = env.get('CFG_AUTOLOAD_ENABLED', '0')
@@ -157,7 +151,6 @@ jobs:
           patch_file('src/config.c', r'cfg->multi_sources_enabled\s*=\s*\d+;', f'cfg->multi_sources_enabled = {cfg_multi_sources_enabled};')
 
           patch_file('include/pldmgr.h', r'#define\s+MENU_VERSION\s*"[^"]*"', f'#define MENU_VERSION "{version}"')
-          patch_file('include/pldmgr.h', r'#define\s+MENU_PORT\s+\d+', f'#define MENU_PORT {http_port}')
           patch_file('include/pldmgr.h', r'#define\s+BASE_DATA_DIR\s*"[^"]*"', f'#define BASE_DATA_DIR "{config_dir}"')
           patch_file('include/pldmgr.h', r'#define\s+AUTOLOAD_CONFIG_PATH\s*"[^"]*"', f'#define AUTOLOAD_CONFIG_PATH "{autoload_path}"')
           patch_file('include/pldmgr.h', r'#define\s+PAYLOADS_STORAGE_DIR\s*"[^"]*"', f'#define PAYLOADS_STORAGE_DIR "{payloads_dir}"')
@@ -169,7 +162,6 @@ jobs:
                   for root, _, files in os.walk(folder):
                       for f in files:
                           p = os.path.join(root, f)
-                          patch_file(p, r'8084', http_port)
                           patch_file(p, r'PLDM00001', title_id)
                           patch_file(p, r'PLDMGR001', title_id)
                           patch_file(p, r'PS5 Payload Manager', app_name)
