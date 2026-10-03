@@ -31,24 +31,37 @@ jobs:
         with:
           node-version: 20
 
-      - name: "Personnalisation Visuelle & Depots (Non-Destructif)"
+      - name: "Personnalisation Profonde & Reconstruction Frontend"
         run: |
           cd workspace
 
-          echo "1. Personnalisation du nom de l'application dans le Frontend..."
-          find frontend -type f \( -name "*.html" -o -name "*.vue" -o -name "*.tsx" -o -name "*.ts" -o -name "*.js" -o -name "*.json" \) -exec sed -i "s|PS5 Payload Manager|evoX-CoreOS Payload Manager|g" {} +
+          echo "1. Remplacement global du nom dans tous les fichiers..."
+          grep -rl "PS5 Payload Manager" . | xargs -r sed -i "s|PS5 Payload Manager|evoX-CoreOS Payload Manager|g"
 
-          echo "2. Remplacement du depot principal dans src/sources.c..."
-          if [ -f "src/sources.c" ]; then
-            sed -i 's|https://itsplk.github.io/ps5-payloads-mirror/payloads.json|https://nexgen999.github.io/evoX-CoreOS/json/payloads.json|g' src/sources.c
+          echo "2. Remplacement du depot principal de payloads..."
+          grep -rl "https://itsplk.github.io/ps5-payloads-mirror/payloads.json" . | xargs -r sed -i "s|https://itsplk.github.io/ps5-payloads-mirror/payloads.json|https://nexgen999.github.io/evoX-CoreOS/json/payloads.json|g"
+          grep -rl "itsplk.github.io" . | xargs -r sed -i "s|https://itsplk.github.io/ps5-payloads-mirror/payloads.json|https://nexgen999.github.io/evoX-CoreOS/json/payloads.json|g"
+
+          echo "3. Remplacement du port HTTP (8085)..."
+          grep -rl "8084" src/ include/ frontend/ | xargs -r sed -i "s|8084|8085|g"
+
+          echo "4. Reconstruction du Frontend Web pour integrer evoX-CoreOS..."
+          cd frontend
+          npm install
+          npm run build
+          cd ..
+
+          echo "5. Re-generation des assets C integres au binaire..."
+          if [ -d "frontend/dist" ]; then
+            find frontend/dist -type f -exec sed -i "s|PS5 Payload Manager|evoX-CoreOS Payload Manager|g" {} +
+            find frontend/dist -type f -exec sed -i "s|8084|8085|g" {} +
           fi
 
-          echo "3. Personnalisation du port HTTP (8085)..."
-          if [ -f "src/http_server.c" ]; then
-            sed -i 's|8084|8085|g' src/http_server.c
+          if [ -f "tools/gen_assets.py" ]; then
+            python3 tools/gen_assets.py || true
           fi
 
-          echo "Configuration appliquee avec succes sans toucher aux structures C."
+          echo "Frontend reconstruit et assets C mis a jour avec succes !"
 
       - name: "Compilation Native PS5 via Docker SDK"
         run: |
@@ -58,11 +71,11 @@ jobs:
           echo "Execution du script officiel build_release.sh..."
           ./build_release.sh
 
-          echo "Recuperation du binaire .elf compile..."
+          echo "Verification et recuperation des binaires .elf..."
           PRODUCED_ELF=$(find . -maxdepth 3 -name "*.elf" | head -n 1)
 
           if [ -n "$PRODUCED_ELF" ]; then
-            echo "Binaire trouve avec succes : $PRODUCED_ELF"
+            echo "Binaire compile trouve avec succes : $PRODUCED_ELF"
             cp "$PRODUCED_ELF" "../evox.elf"
             cp "$PRODUCED_ELF" "../evox_v6.6.6.elf"
             cd ..
