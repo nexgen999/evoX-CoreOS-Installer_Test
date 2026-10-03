@@ -175,96 +175,78 @@ jobs:
           print("Patchs C terminés avec succès !")
           PY_EOF
 
-      - name: "Injection des Options Graphiques & Thème Visuel"
-        run: |
-          cd workspace
-          python3 - << 'PY_EOF'
-          import os, re
-
-          env = os.environ
-          app_name = env.get('APP_NAME', 'evoX-CoreOS')
-          logo_badge = env.get('LOGO_BADGE_TEXT', 'COREOS')
-          build_string = env.get('BUILD_STRING', '')
-
-          bg_canvas = env.get('BG_CANVAS', '#0B0F19')
-          sidebar_bg = env.get('SIDEBAR_BG', '#000000')
-          active_pill_bg = env.get('ACTIVE_PILL_BG', '#ff0000')
-          active_pill_text = env.get('ACTIVE_PILL_TEXT', '#ffffff')
-          card_bg = env.get('BG_CARD', '#131A29')
-          border_card = env.get('BORDER_CARD', '#1E293B')
-          card_version_color = env.get('CARD_VERSION_COLOR', '#3a96f8')
-
-          if os.path.isdir('frontend'):
-              for root, _, files in os.walk('frontend'):
-                  if 'node_modules' in root or '.git' in root or 'dist' in root:
-                      continue
-                  for f in files:
-                      if f.endswith(('.html', '.vue', '.tsx', '.ts', '.js', '.json')):
-                          p = os.path.join(root, f)
-                          with open(p, 'r', encoding='utf-8', errors='ignore') as fh:
-                              c = fh.read()
-                          nc = c.replace('PS5 Payload Manager', app_name)
-                          nc = nc.replace('PLDMGR', logo_badge)
-                          if build_string and ('Payload Manager v' in nc or 'built at' in nc):
-                              nc = re.sub(r'Payload Manager v[^\n<"]+', build_string, nc)
-                          if nc != c:
-                              with open(p, 'w', encoding='utf-8') as fh:
-                                  fh.write(nc)
-
-          css_block = f"""<style id="evox-custom-theme">
-            :root {{
-              --primary-color: {active_pill_bg} !important;
-              --accent-color: {active_pill_bg} !important;
-              --bg-color: {bg_canvas} !important;
-              --sidebar-bg: {sidebar_bg} !important;
-              --card-bg: {card_bg} !important;
-              --card-border: {border_card} !important;
-            }}
-            body {{ background-color: {bg_canvas} !important; }}
-            aside, nav.sidebar {{ background-color: {sidebar_bg} !important; }}
-            .bg-blue-600, .bg-sky-500, .bg-sky-600 {{
-              background-color: {active_pill_bg} !important;
-              color: {active_pill_text} !important;
-            }}
-            .text-sky-400, .text-blue-400 {{
-              color: {card_version_color} !important;
-            }}
-          </style>"""
-
-          idx = 'frontend/index.html'
-          if os.path.isfile(idx):
-              with open(idx, 'r', encoding='utf-8') as fh:
-                  content = fh.read()
-              content = re.sub(r'<title>.*?</title>', f'<title>{app_name}</title>', content)
-              if '</head>' in content:
-                  content = content.replace('</head>', css_block + '\n</head>')
-              with open(idx, 'w', encoding='utf-8') as fh:
-                  fh.write(content)
-              print("[OK] Thème injecté avec succès dans frontend/index.html")
-          PY_EOF
-
-      - name: "Reconstruction Frontend & Régénération des Assets C"
+      - name: "Compilation Frontend & Injection Thème dans dist"
         run: |
           cd workspace
 
-          echo "--> 3.1 Compilation du Frontend avec npm run build..."
+          echo "--> Compilation du Frontend avec npm..."
           cd frontend
           npm install
           npm run build
           cd ..
 
-          echo "--> 3.2 Injection dans frontend/dist pour assurer la prise en compte..."
-          if [ -d "frontend/dist" ]; then
-            find frontend/dist -type f -exec sed -i "s|PS5 Payload Manager|$APP_NAME|g" {} +
-            find frontend/dist -type f -exec sed -i "s|8084|$HTTP_PORT|g" {} +
-          fi
+          echo "--> Injection du thème CSS & textes directement dans frontend/dist..."
+          python3 - << 'PY_EOF'
+          import os, glob, re
 
-          echo "--> 3.3 Régénération des headers C contenant le site web..."
+          env = os.environ
+          app_name = env.get('APP_NAME', 'evoX-CoreOS')
+          logo_badge = env.get('LOGO_BADGE_TEXT', 'COREOS')
+
+          bg_canvas = env.get('BG_CANVAS', '#0B0F19')
+          sidebar_bg = env.get('SIDEBAR_BG', '#080b11')
+          active_pill_bg = env.get('ACTIVE_PILL_BG', '#ff0000')
+          active_pill_text = env.get('ACTIVE_PILL_TEXT', '#ffffff')
+          card_bg = env.get('BG_CARD', '#131A29')
+          border_card = env.get('BORDER_CARD', '#1E293B')
+          card_version_color = env.get('CARD_VERSION_COLOR', '#38bdf8')
+
+          dist_index = 'frontend/dist/index.html'
+          if os.path.isfile(dist_index):
+              with open(dist_index, 'r', encoding='utf-8') as fh:
+                  content = fh.read()
+              
+              css_block = f"""<style id="evox-override">
+                html, body {{ background-color: {bg_canvas} !important; }}
+                aside, nav, .sidebar {{ background-color: {sidebar_bg} !important; }}
+                .bg-blue-600, .bg-sky-500, .bg-sky-600, [class*="bg-blue-"], [class*="bg-sky-"] {{
+                  background-color: {active_pill_bg} !important;
+                  color: {active_pill_text} !important;
+                }}
+                .text-sky-400, .text-blue-400 {{
+                  color: {card_version_color} !important;
+                }}
+                .bg-slate-800, .bg-slate-900, [class*="bg-card"] {{
+                  background-color: {card_bg} !important;
+                  border-color: {border_card} !important;
+                }}
+              </style>"""
+              
+              content = content.replace('</head>', css_block + '</head>')
+              content = re.sub(r'<title>.*?</title>', f'<title>{app_name}</title>', content)
+              
+              with open(dist_index, 'w', encoding='utf-8') as fh:
+                  fh.write(content)
+              print("[OK] Thème injecté dans frontend/dist/index.html")
+
+          for root, _, files in os.walk('frontend/dist'):
+              for f in files:
+                  if f.endswith(('.js', '.css', '.html')):
+                      p = os.path.join(root, f)
+                      with open(p, 'r', encoding='utf-8', errors='ignore') as fh:
+                          c = fh.read()
+                      nc = c.replace('PS5 Payload Manager', app_name)
+                      nc = nc.replace('PLDMGR', logo_badge)
+                      nc = nc.replace('8084', env.get('HTTP_PORT', '8085'))
+                      if nc != c:
+                          with open(p, 'w', encoding='utf-8') as fh:
+                              fh.write(nc)
+          PY_EOF
+
+          echo "--> Régénération des assets C depuis le dist/ patché..."
           if [ -f "tools/gen_assets.py" ]; then
             python3 tools/gen_assets.py || true
           fi
-
-          echo "Frontend reconstruit et assets réintégrés avec succès !"
 
       - name: "Compilation Native PS5 via Docker SDK"
         run: |
