@@ -29,7 +29,7 @@ jobs:
       PARAM_TITLE_NAME: "evoX-CoreOS Payload Manager"
       APP_SUBTITLE: "Gestionnaire de Payloads & Autoloader evoX-CoreOS pour PlayStation 5"
       TITLE_ID: "EVOX00001"
-      CUSTOM_ICON_URL: "https://github.com/nexgen999/evox/blob/main/pldmgr_screenshot.png"
+      CUSTOM_ICON_URL: "https://github.com/nexgen999/evox/blob/main/assets/icon0.png"
       VERSION: "${{ github.event.inputs.version || '6.6.6' }}"
       HTTP_PORT: "${{ github.event.inputs.port || '8085' }}"
       REPO_URL: "https://nexgen999.github.io/evoX-CoreOS/json/payloads.json"
