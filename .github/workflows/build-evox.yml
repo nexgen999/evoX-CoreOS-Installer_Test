@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version du binaire (ex: 1.6.0)"
+        description: "Version du binaire"
         required: false
         default: "6.6.6"
 
@@ -58,15 +58,18 @@ jobs:
           echo "Execution du script officiel build_release.sh..."
           ./build_release.sh
 
-          echo "Verification du binaire produit pldmgr.elf..."
-          if [ -f "pldmgr.elf" ]; then
-            echo "pldmgr.elf genere avec succes !"
-            cp pldmgr.elf "../evox.elf"
-            cp pldmgr.elf "../evox_v6.6.6.elf"
+          echo "Recuperation du binaire .elf compile..."
+          PRODUCED_ELF=$(find . -maxdepth 3 -name "*.elf" | head -n 1)
+
+          if [ -n "$PRODUCED_ELF" ]; then
+            echo "Binaire trouve avec succes : $PRODUCED_ELF"
+            cp "$PRODUCED_ELF" "../evox.elf"
+            cp "$PRODUCED_ELF" "../evox_v6.6.6.elf"
             cd ..
-            ls -lh "evox.elf" "evox_v6.6.6.elf"
+            echo "=== Fichiers EVOX prets pour telechargement ==="
+            ls -lh evox.elf evox_v6.6.6.elf
           else
-            echo "ERREUR: pldmgr.elf non trouve."
+            echo "ERREUR: Aucun fichier .elf n'a ete trouve."
             exit 1
           fi
 
