@@ -6,11 +6,6 @@ on:
       - main
       - master
   workflow_dispatch:
-    inputs:
-      version:
-        description: "Version du binaire"
-        required: false
-        default: "5.2.1F"
 
 permissions:
   contents: write
@@ -21,12 +16,9 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      APP_NAME: "evoX-CoreOS"
-      PARAM_TITLE_NAME: "evoX-CoreOS"
-      TITLE_ID: "EVOX00001"
       CUSTOM_ICON_URL: "https://raw.githubusercontent.com/nexgen999/evoX-CoreOS-Installer_Test/main/assets/icon0.png"
-      VERSION: "${{ github.event.inputs.version || '5.2.1F' }}"
       REPO_URL: "https://nexgen999.github.io/evoX-CoreOS/json/payloads.json"
+      VERSION: "5.2.1"
 
     steps:
       - name: "Clonage du depot original"
@@ -45,18 +37,15 @@ jobs:
           mkdir -p frontend/public
           cp -f assets/icon0.png frontend/public/icon0.png
 
-      - name: "Patch strict : ID, Nom et JSON"
+      - name: "Remplacement strict de la version et de l'URL JSON"
         run: |
           cd workspace
           python3 - << 'PY_EOF'
           import os, re
 
           env = os.environ
-          app_name = env.get('APP_NAME', 'evoX-CoreOS')
-          param_title = env.get('PARAM_TITLE_NAME', app_name)
-          title_id = env.get('TITLE_ID', 'EVOX00001')
-          version = env.get('VERSION', '5.2.1F')
           repo_url = env.get('REPO_URL', '')
+          version = env.get('VERSION', '5.2.1')
 
           def patch_file(file_path, pattern, replacement):
               if not os.path.isfile(file_path):
@@ -69,34 +58,20 @@ jobs:
                       f.write(modified)
                   print(f"[OK] Patched {file_path}")
 
-          # Patch des métadonnées du package (assets/param.json)
-          if os.path.isdir('assets'):
-              for root, _, files in os.walk('assets'):
-                  for f in files:
-                      if f.endswith('.json'):
-                          p = os.path.join(root, f)
-                          patch_file(p, r'"titleName":\s*"[^"]*"', f'"titleName": "{param_title}"')
-                          patch_file(p, r'"titleId":\s*"[^"]*"', f'"titleId": "{title_id}"')
-
-          # Patch minimal des headers & sources C
-          patch_file('src/app_installer.c', r'const\s+char\s*\*title_id\s*=\s*"[^"]*";', f'const char *title_id = "{title_id}";')
+          # Patch strict de la version
           patch_file('include/pldmgr.h', r'#define\s+MENU_VERSION\s*"[^"]*"', f'#define MENU_VERSION "{version}"')
-          
+
+          # Patch strict du JSON uniquement
           if repo_url:
               patch_file('include/pldmgr.h', r'#define\s+REPOSITORY_SOURCE_URL\s*"[^"]*"', f'#define REPOSITORY_SOURCE_URL "{repo_url}"')
-
-          for folder in ['src', 'include']:
-              if os.path.isdir(folder):
-                  for root, _, files in os.walk(folder):
-                      for f in files:
-                          p = os.path.join(root, f)
-                          patch_file(p, r'PLDM00001', title_id)
-                          patch_file(p, r'PLDMGR001', title_id)
-                          patch_file(p, r'PS5 Payload Manager', app_name)
-                          if repo_url:
+              for folder in ['src', 'include']:
+                  if os.path.isdir(folder):
+                      for root, _, files in os.walk(folder):
+                          for f in files:
+                              p = os.path.join(root, f)
                               patch_file(p, r'https://itsplk\.github\.io/ps5-payloads-mirror/payloads\.json', repo_url)
 
-          print("Patch minimal appliqué.")
+          print("Remplacement icone + JSON effectue.")
           PY_EOF
 
       - name: "Build Frontend standard"
@@ -123,7 +98,7 @@ jobs:
           if [ -n "$PRODUCED_ELF" ]; then
             cp "$PRODUCED_ELF" "../evox.elf"
             cd ..
-            echo "=== Fichier EVOX généré ==="
+            echo "=== Fichier ELF généré ==="
             ls -lh "evox.elf"
           else
             echo "ERREUR: La compilation a échoué."
