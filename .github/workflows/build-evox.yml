@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version du binaire"
+        description: "Version du binaire (ex: 1.6.0)"
         required: false
-        default: "0.0.1"
+        default: "6.6.6"
 
 permissions:
   contents: write
@@ -23,113 +23,50 @@ jobs:
     steps:
       - name: "Clonage du depot itsPLK/ps5-payload-manager"
         run: |
-          echo "Clonage du depot source..."
+          echo "Clonage du code source original..."
           git clone --depth 1 https://github.com/itsPLK/ps5-payload-manager.git workspace
 
-      - name: "Configuration de Node.js"
+      - name: "Configuration de Node.js pour le Frontend"
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: "Application des patchs et configuration EVOX"
-        run: |
-          cd workspace
-          node -e '
-          const fs = require("fs");
-
-          // 1. Generation propre de include/config.h
-          const configContent = `/* Auto-generated EVOX Config */
-          #ifndef _CONFIG_H_
-          #define _CONFIG_H_
-
-          #define APP_NAME "evoX-CoreOS Payload Manager"
-          #define APP_SUBTITLE "Gestionnaire de Payloads & Autoloader EVOX pour PlayStation 5"
-          #define APP_VERSION "0.0.1"
-          #define APP_AUTHOR "nexgen999"
-          #define FORK_URL "https://github.com/nexgen999/evoX-CoreOS-Installer_Test"
-
-          #define ELF_NAME "evox.elf"
-          #define ELF_VERSIONED_NAME "evox_v0.0.1.elf"
-
-          #define DEFAULT_HTTP_PORT 8085
-          #define DEFAULT_REPO_URL "https://nexgen999.github.io/evoX-CoreOS/json/payloads.json"
-
-          #define PAYLOADS_DIR "/data/evox/payloads"
-          #define AUTOLOAD_FILE "/data/evox/autoload/autoload.txt"
-          #define USB_MOUNT_PATH "/mnt/usb0"
-
-          #define AUTO_CLOSE_DISC_DEFAULT 1
-          #define SCAN_USB_ON_STARTUP 1
-
-          #endif
-          `;
-          fs.writeFileSync("include/config.h", configContent);
-
-          // 2. Generation propre de frontend/src/config.ts
-          const frontendConfig = `export const CONFIG = {
-            name: "evoX-CoreOS Payload Manager",
-            subtitle: "Gestionnaire de Payloads & Autoloader EVOX pour PlayStation 5",
-            version: "0.0.1",
-            author: "nexgen999",
-            elfName: "evox.elf",
-            versionedElfName: "evox_v0.0.1.elf",
-            defaultPort: 8085,
-            mainRepoUrl: "https://nexgen999.github.io/evoX-CoreOS/json/payloads.json",
-            mirrorRepoUrls: [],
-            theme: {
-              accentColor: "#10B981",
-              accentSecondary: "#00439C",
-              bgCanvas: "#040711",
-              bgCard: "#0A1224",
-              borderCard: "#164E63",
-              cardRadius: "xl",
-              glowEffect: true
-            }
-          };
-          `;
-          fs.writeFileSync("frontend/src/config.ts", frontendConfig);
-          '
-
-      - name: "Compilation du Frontend Web"
-        run: |
-          cd workspace/frontend
-          npm install
-          npm run build
-
-      - name: "Compilation du Binaire PS5 ELF"
+      - name: "Personnalisation Visuelle & Depots (Non-Destructif)"
         run: |
           cd workspace
 
-          # Executer build_release.sh si present
-          if [ -f "build_release.sh" ]; then
-            chmod +x build_release.sh
-            ./build_release.sh || true
+          echo "1. Personnalisation du nom de l'application dans le Frontend..."
+          find frontend -type f \( -name "*.html" -o -name "*.vue" -o -name "*.tsx" -o -name "*.ts" -o -name "*.js" -o -name "*.json" \) -exec sed -i "s|PS5 Payload Manager|evoX-CoreOS Payload Manager|g" {} +
+
+          echo "2. Remplacement du depot principal dans src/sources.c..."
+          if [ -f "src/sources.c" ]; then
+            sed -i 's|https://itsplk.github.io/ps5-payloads-mirror/payloads.json|https://nexgen999.github.io/evoX-CoreOS/json/payloads.json|g' src/sources.c
           fi
 
-          # Construction de l image SDK Docker si Dockerfile.sdk est present
-          if [ -f "Dockerfile.sdk" ]; then
-            echo "Construction du conteneur SDK..."
-            docker build -f Dockerfile.sdk -t ps5-payload-sdk-pldmgr .
-            docker run --rm -v "$(pwd):/workspace" -w /workspace ps5-payload-sdk-pldmgr make || true
+          echo "3. Personnalisation du port HTTP (8085)..."
+          if [ -f "src/http_server.c" ]; then
+            sed -i 's|8084|8085|g' src/http_server.c
           fi
 
-          # Verification des binaires .elf produits
-          PRODUCED=$(find . -maxdepth 2 -name "*.elf" | head -n 1)
+          echo "Configuration appliquee avec succes sans toucher aux structures C."
 
-          if [ -z "$PRODUCED" ]; then
-            echo "Tentative make natif..."
-            make || true
-            PRODUCED=$(find . -maxdepth 2 -name "*.elf" | head -n 1)
-          fi
+      - name: "Compilation Native PS5 via Docker SDK"
+        run: |
+          cd workspace
+          chmod +x build_release.sh
 
-          if [ -n "$PRODUCED" ]; then
-            echo "Binaire produit avec succes : $PRODUCED"
-            cp "$PRODUCED" "../evox.elf"
-            cp "$PRODUCED" "../evox_v0.0.1.elf"
+          echo "Execution du script officiel build_release.sh..."
+          ./build_release.sh
+
+          echo "Verification du binaire produit pldmgr.elf..."
+          if [ -f "pldmgr.elf" ]; then
+            echo "pldmgr.elf genere avec succes !"
+            cp pldmgr.elf "../evox.elf"
+            cp pldmgr.elf "../evox_v6.6.6.elf"
             cd ..
-            ls -lh "evox.elf" "evox_v0.0.1.elf"
+            ls -lh "evox.elf" "evox_v6.6.6.elf"
           else
-            echo "ERREUR: Impossible de produire le fichier .elf"
+            echo "ERREUR: pldmgr.elf non trouve."
             exit 1
           fi
 
@@ -139,5 +76,5 @@ jobs:
           name: "EVOX-PS5-Payloads"
           path: |
             evox.elf
-            evox_v0.0.1.elf
+            evox_v6.6.6.elf
           retention-days: 30
