@@ -11,6 +11,10 @@ on:
         description: "Version du binaire"
         required: false
         default: "6.6.6"
+      port:
+        description: "Port HTTP du serveur PS5"
+        required: false
+        default: "8085"
 
 permissions:
   contents: write
@@ -19,6 +23,32 @@ jobs:
   build:
     name: "Compilation EVOX ELF"
     runs-on: ubuntu-latest
+
+    # =========================================================================
+    # VARIABLES DE PERSONNALISATION VISUELLE & CHEMINS PS5
+    # Vous pouvez modifier directement ces valeurs ici :
+    # =========================================================================
+    env:
+      # --- Identité & Titres ---
+      APP_NAME: "evoX-CoreOS Payload Manager"
+      APP_SUBTITLE: "Gestionnaire de Payloads & Autoloader evoX-CoreOS pour PlayStation 5"
+      VERSION: "${{ github.event.inputs.version || '6.6.6' }}"
+      HTTP_PORT: "${{ github.event.inputs.port || '8085' }}"
+      REPO_URL: "https://nexgen999.github.io/evoX-CoreOS/json/payloads.json"
+
+      # --- Options Graphiques du Frontend (Couleurs & Thème) ---
+      ACCENT_PRIMARY: "#10B981"
+      ACCENT_SECONDARY: "#00439C"
+      BG_CANVAS: "#040711"
+      BG_CARD: "#0A1224"
+      BORDER_CARD: "#164E63"
+
+      # --- Chemins Système PS5 & Options C ---
+      PAYLOADS_DIR: "/data/evox/payloads"
+      AUTOLOAD_PATH: "/data/evox/autoload/autoload.txt"
+      USB_MOUNT_PATH: "/mnt/usb0"
+      AUTO_CLOSE_DISC: "1"
+      SCAN_USB_ON_STARTUP: "1"
 
     steps:
       - name: "Clonage du depot itsPLK/ps5-payload-manager"
@@ -31,61 +61,138 @@ jobs:
         with:
           node-version: 20
 
-      - name: "Personnalisation Profonde & Reconstruction Frontend"
+      # -----------------------------------------------------------------------
+      # ÉTAPE 1 : PERSONNALISATION DU NOYAU C & CHEMINS PS5
+      # -----------------------------------------------------------------------
+      - name: "Patch du Noyau C & Chemins Système PS5"
         run: |
           cd workspace
 
-          echo "1. Remplacement global du nom dans tous les fichiers..."
-          grep -rl "PS5 Payload Manager" . | xargs -r sed -i "s|PS5 Payload Manager|evoX-CoreOS Payload Manager|g"
+          echo "--> 1.1 Remplacement du nom dans les sources C..."
+          grep -rl "PS5 Payload Manager" src/ include/ | xargs -r sed -i "s|PS5 Payload Manager|$APP_NAME|g"
 
-          echo "2. Remplacement du depot principal de payloads..."
-          grep -rl "https://itsplk.github.io/ps5-payloads-mirror/payloads.json" . | xargs -r sed -i "s|https://itsplk.github.io/ps5-payloads-mirror/payloads.json|https://nexgen999.github.io/evoX-CoreOS/json/payloads.json|g"
-          grep -rl "itsplk.github.io" . | xargs -r sed -i "s|https://itsplk.github.io/ps5-payloads-mirror/payloads.json|https://nexgen999.github.io/evoX-CoreOS/json/payloads.json|g"
+          echo "--> 1.2 Configuration du port HTTP ($HTTP_PORT) dans src/http_server.c..."
+          if [ -f "src/http_server.c" ]; then
+            sed -i "s|8084|$HTTP_PORT|g" src/http_server.c
+          fi
+          grep -rl "8084" src/ include/ | xargs -r sed -i "s|8084|$HTTP_PORT|g"
 
-          echo "3. Remplacement du port HTTP (8085)..."
-          grep -rl "8084" src/ include/ frontend/ | xargs -r sed -i "s|8084|8085|g"
+          echo "--> 1.3 Injection de l'URL du dépôt ($REPO_URL)..."
+          grep -rl "https://itsplk.github.io/ps5-payloads-mirror/payloads.json" . | xargs -r sed -i "s|https://itsplk.github.io/ps5-payloads-mirror/payloads.json|$REPO_URL|g"
+          grep -rl "itsplk.github.io" . | xargs -r sed -i "s|https://itsplk.github.io/ps5-payloads-mirror/payloads.json|$REPO_URL|g"
 
-          echo "4. Reconstruction du Frontend Web pour integrer evoX-CoreOS..."
+          echo "--> 1.4 Configuration des chemins PS5 (/data/payloads, /data/autoload)..."
+          if [ "$PAYLOADS_DIR" != "/data/payloads" ]; then
+            find src include -type f -exec sed -i "s|/data/payloads|$PAYLOADS_DIR|g" {} +
+          fi
+          if [ "$AUTOLOAD_PATH" != "/data/autoload/autoload.txt" ]; then
+            find src include -type f -exec sed -i "s|/data/autoload/autoload.txt|$AUTOLOAD_PATH|g" {} +
+          fi
+          if [ "$USB_MOUNT_PATH" != "/mnt/usb0" ]; then
+            find src include -type f -exec sed -i "s|/mnt/usb0|$USB_MOUNT_PATH|g" {} +
+          fi
+
+          echo "Patch C applique sans endommager les headers du SDK."
+
+      # -----------------------------------------------------------------------
+      # ÉTAPE 2 : PERSONNALISATION GRAPHIQUE DU FRONTEND (THÈME & COULEURS)
+      # -----------------------------------------------------------------------
+      - name: "Injection des Options Graphiques & Thème Visuel"
+        run: |
+          cd workspace
+
+          echo "--> 2.1 Remplacement des titres dans le Frontend..."
+          find frontend -type f \( -name "*.html" -o -name "*.vue" -o -name "*.tsx" -o -name "*.ts" -o -name "*.js" -o -name "*.json" \) -exec sed -i "s|PS5 Payload Manager|$APP_NAME|g" {} +
+
+          echo "--> 2.2 Injection du thème CSS (Couleurs evoX-CoreOS) dans frontend/index.html..."
+          cat << EOF > /tmp/evox_theme.css
+          <style id="evox-custom-theme">
+            :root {
+              --primary-color: $ACCENT_PRIMARY !important;
+              --accent-color: $ACCENT_PRIMARY !important;
+              --bg-color: $BG_CANVAS !important;
+              --card-bg: $BG_CARD !important;
+            }
+            body {
+              background-color: $BG_CANVAS !important;
+            }
+            header, nav {
+              border-bottom-color: $BORDER_CARD !important;
+            }
+            /* Boutons & Accents */
+            .bg-blue-600, .bg-sky-600, .bg-indigo-600 {
+              background-color: $ACCENT_PRIMARY !important;
+            }
+            .text-blue-500, .text-sky-400 {
+              color: $ACCENT_PRIMARY !important;
+            }
+            .border-blue-500, .border-sky-500 {
+              border-color: $ACCENT_PRIMARY !important;
+            }
+          </style>
+          EOF
+
+          # Injection juste avant la fermeture </head>
+          if [ -f "frontend/index.html" ]; then
+            sed -i 's|</head>|'"$(cat /tmp/evox_theme.css)"'</head>|' frontend/index.html || true
+            sed -i "s|<title>.*</title>|<title>$APP_NAME</title>|g" frontend/index.html
+          fi
+
+      # -----------------------------------------------------------------------
+      # ÉTAPE 3 : RECONSTRUCTION DU FRONTEND & MISE À JOUR DES ASSETS C
+      # -----------------------------------------------------------------------
+      - name: "Reconstruction Frontend & Régénération des Assets C"
+        run: |
+          cd workspace
+
+          echo "--> 3.1 Compilation du Frontend avec npm run build..."
           cd frontend
           npm install
           npm run build
           cd ..
 
-          echo "5. Re-generation des assets C integres au binaire..."
+          echo "--> 3.2 Injection dans frontend/dist pour assurer la prise en compte..."
           if [ -d "frontend/dist" ]; then
-            find frontend/dist -type f -exec sed -i "s|PS5 Payload Manager|evoX-CoreOS Payload Manager|g" {} +
-            find frontend/dist -type f -exec sed -i "s|8084|8085|g" {} +
+            find frontend/dist -type f -exec sed -i "s|PS5 Payload Manager|$APP_NAME|g" {} +
+            find frontend/dist -type f -exec sed -i "s|8084|$HTTP_PORT|g" {} +
           fi
 
+          echo "--> 3.3 Régénération des headers C contenant le site web..."
           if [ -f "tools/gen_assets.py" ]; then
             python3 tools/gen_assets.py || true
           fi
 
-          echo "Frontend reconstruit et assets C mis a jour avec succes !"
+          echo "Frontend reconstruit et assets réintégrés avec succès !"
 
+      # -----------------------------------------------------------------------
+      # ÉTAPE 4 : COMPILATION DU DÉMON PS5 VIA DOCKER SDK
+      # -----------------------------------------------------------------------
       - name: "Compilation Native PS5 via Docker SDK"
         run: |
           cd workspace
           chmod +x build_release.sh
 
-          echo "Execution du script officiel build_release.sh..."
+          echo "Exécution de build_release.sh..."
           ./build_release.sh
 
-          echo "Verification et recuperation des binaires .elf..."
+          echo "Vérification et renommage des binaires..."
           PRODUCED_ELF=$(find . -maxdepth 3 -name "*.elf" | head -n 1)
 
           if [ -n "$PRODUCED_ELF" ]; then
-            echo "Binaire compile trouve avec succes : $PRODUCED_ELF"
+            echo "Binaire généré trouvé : $PRODUCED_ELF"
             cp "$PRODUCED_ELF" "../evox.elf"
             cp "$PRODUCED_ELF" "../evox_v6.6.6.elf"
             cd ..
-            echo "=== Fichiers EVOX prets pour telechargement ==="
-            ls -lh evox.elf evox_v6.6.6.elf
+            echo "=== Fichiers EVOX prêts ==="
+            ls -lh "evox.elf" "evox_v6.6.6.elf"
           else
-            echo "ERREUR: Aucun fichier .elf n'a ete trouve."
+            echo "ERREUR: Aucun fichier .elf n'a été produit."
             exit 1
           fi
 
+      # -----------------------------------------------------------------------
+      # ÉTAPE 5 : TÉLÉCHARGEMENT DIRECT DES ARTIFACTS
+      # -----------------------------------------------------------------------
       - name: "Sauvegarde des Binaires ELF (Artifacts)"
         uses: actions/upload-artifact@v4
         with:
