@@ -1,70 +1,303 @@
-name: Release On-Demand
+name: "Build EVOX PS5 Payload"
 
 on:
+  push:
+    branches:
+      - main
+      - master
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version du binaire"
+        required: false
+        default: "6.6.6"
+      port:
+        description: "Port HTTP du serveur PS5"
+        required: false
+        default: "8085"
+
+permissions:
+  contents: write
 
 jobs:
-  build-and-release:
+  build:
+    name: "Compilation EVOX ELF"
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
+
+    env:
+      APP_NAME: "evoX-CoreOS Payload Manager"
+      PARAM_TITLE_NAME: "evoX-CoreOS Payload Manager"
+      APP_SUBTITLE: "Gestionnaire de Payloads & Autoloader evoX-CoreOS pour PlayStation 5"
+      TITLE_ID: "EVOX00001"
+      CUSTOM_ICON_URL: "https://github.com/nexgen999/evox/blob/main/assets/icon0.png"
+      VERSION: "${{ github.event.inputs.version || '6.6.6' }}"
+      HTTP_PORT: "${{ github.event.inputs.port || '8085' }}"
+      REPO_URL: "https://nexgen999.github.io/evoX-CoreOS/json/payloads.json"
+      BUILD_STRING: "evoX-CoreOS v6.6.6 by nexgen999 (custom build)"
+      LOGO_BADGE_TEXT: "COREOS"
+      DONATE_TEXT: "♡ DONATE"
+
+      CFG_AUTOLOAD_ENABLED: "0"
+      CFG_AUTO_BROWSER_OPEN: "1"
+      CFG_AUTOLOAD_DELAY: "5"
+      CFG_KILL_DISC_PLAYER: "1"
+      CFG_SCAN_USB_PAYLOADS: "1"
+      CFG_AUTO_INSTALL_APP: "1"
+      CFG_MULTI_SOURCES_ENABLED: "1"
+
+      PAYLOADS_DIR: "/data/evox/payloads"
+      AUTOLOAD_PATH: "/data/evox/config/autoload.txt"
+      CONFIG_DIR: "/data/evox"
+      USB_MOUNT_PATH: "/mnt/usb0"
+
+      BG_CANVAS: "#0B0F19"
+      SIDEBAR_BG: "#080b11"
+      ACTIVE_PILL_BG: "#ff0000"
+      ACTIVE_PILL_TEXT: "#ffffff"
+      BADGE_BG: "#ff0000"
+      BG_CARD: "#131A29"
+      BORDER_CARD: "#1E293B"
+      CARD_TITLE_COLOR: "#ffffff"
+      CARD_VERSION_COLOR: "#38bdf8"
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - name: "Clonage du depot itsPLK/ps5-payload-manager"
+        run: |
+          echo "Clonage du code source original..."
+          git clone --depth 1 https://github.com/itsPLK/ps5-payload-manager.git workspace
 
-      - name: Setup Node.js
+      - name: "Configuration de Node.js pour le Frontend"
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
 
-      - name: Extract Version
-        id: version
+      - name: "Remplacement Strict de assets/icon0.png & Icônes Frontend"
         run: |
-          VERSION=$(grep '#define MENU_VERSION' include/pldmgr.h | awk '{print $3}' | tr -d '"' | tr -d '\r')
-          if [ -z "$VERSION" ]; then
-            echo "Error: Could not find MENU_VERSION in include/pldmgr.h"
-            exit 1
+          cd workspace
+          if [ -n "$CUSTOM_ICON_URL" ]; then
+            echo "--> Conversion URL GitHub Blob vers Raw..."
+            RAW_ICON_URL=$(echo "$CUSTOM_ICON_URL" | sed 's|github.com/|raw.githubusercontent.com/|' | sed 's|/blob/|/|')
+            
+            echo "--> Téléchargement de l'icône depuis : $RAW_ICON_URL"
+            curl -sSL "$RAW_ICON_URL" -o /tmp/custom_icon.png
+
+            # 1. Remplacement direct de assets/icon0.png
+            if [ -f "assets/icon0.png" ]; then
+              cp -f /tmp/custom_icon.png assets/icon0.png
+              echo "[OK] assets/icon0.png remplacé."
+            fi
+
+            # 2. Écrasement global dans assets/ et frontend/
+            find assets/ -type f \( -name "*.png" -o -name "*.ico" \) -exec cp -f /tmp/custom_icon.png {} \;
+            find frontend/ -type f \( -name "*.png" -o -name "*.ico" -o -name "*.svg" \) -exec cp -f /tmp/custom_icon.png {} \;
+            
+            echo "[OK] Toutes les icônes du projet ont été écrasées."
           fi
-          echo "Extracted version: $VERSION"
-          echo "tag=v${VERSION}" >> $GITHUB_OUTPUT
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
 
-      - name: Check if release exists
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: "Patch du Noyau C, config.c, assets/param.json & include/pldmgr.h"
         run: |
-          TAG="${{ steps.version.outputs.tag }}"
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "Release $TAG already exists. Aborting."
-            exit 1
+          cd workspace
+          python3 - << 'PY_EOF'
+          import os, re
+
+          env = os.environ
+          app_name = env.get('APP_NAME', 'evoX-CoreOS Payload Manager')
+          param_title = env.get('PARAM_TITLE_NAME', app_name)
+          title_id = env.get('TITLE_ID', 'EVOX00001')
+          version = env.get('VERSION', '6.6.6')
+          http_port = env.get('HTTP_PORT', '8085')
+          repo_url = env.get('REPO_URL', '')
+
+          cfg_autoload_enabled = env.get('CFG_AUTOLOAD_ENABLED', '0')
+          cfg_auto_browser_open = env.get('CFG_AUTO_BROWSER_OPEN', '1')
+          cfg_autoload_delay = env.get('CFG_AUTOLOAD_DELAY', '5')
+          cfg_kill_disc_player = env.get('CFG_KILL_DISC_PLAYER', '1')
+          cfg_scan_usb_payloads = env.get('CFG_SCAN_USB_PAYLOADS', '1')
+          cfg_auto_install_app = env.get('CFG_AUTO_INSTALL_APP', '1')
+          cfg_multi_sources_enabled = env.get('CFG_MULTI_SOURCES_ENABLED', '0')
+
+          payloads_dir = env.get('PAYLOADS_DIR', '/data/payloads')
+          autoload_path = env.get('AUTOLOAD_PATH', '/data/autoload/autoload.txt')
+          config_dir = env.get('CONFIG_DIR', '/data/payload_manager')
+          usb_mount_path = env.get('USB_MOUNT_PATH', '/mnt/usb0')
+
+          def patch_file(file_path, pattern, replacement):
+              if not os.path.isfile(file_path):
+                  return
+              with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                  orig = f.read()
+              modified = re.sub(pattern, replacement, orig)
+              if modified != orig:
+                  with open(file_path, 'w', encoding='utf-8') as f:
+                      f.write(modified)
+                  print(f"[OK] Patched {file_path}")
+
+          if os.path.isdir('assets'):
+              for root, _, files in os.walk('assets'):
+                  for f in files:
+                      if f.endswith('.json'):
+                          p = os.path.join(root, f)
+                          patch_file(p, r'"titleName":\s*"[^"]*"', f'"titleName": "{param_title}"')
+                          patch_file(p, r'"titleId":\s*"[^"]*"', f'"titleId": "{title_id}"')
+
+          patch_file('src/app_installer.c', r'const\s+char\s*\*title_id\s*=\s*"[^"]*";', f'const char *title_id = "{title_id}";')
+          patch_file('src/app_installer.c', r'PLDM00001', title_id)
+          patch_file('src/app_installer.c', r'Payload Manager', param_title)
+
+          patch_file('src/config.c', r'cfg->autoload_enabled\s*=\s*\d+;', f'cfg->autoload_enabled      = {cfg_autoload_enabled};')
+          patch_file('src/config.c', r'cfg->auto_browser_open\s*=\s*\d+;', f'cfg->auto_browser_open     = {cfg_auto_browser_open};')
+          patch_file('src/config.c', r'cfg->autoload_delay\s*=\s*\d+;', f'cfg->autoload_delay        = {cfg_autoload_delay};')
+          patch_file('src/config.c', r'cfg->kill_disc_player\s*=\s*\d+;', f'cfg->kill_disc_player      = {cfg_kill_disc_player};')
+          patch_file('src/config.c', r'cfg->scan_usb_payloads\s*=\s*\d+;', f'cfg->scan_usb_payloads     = {cfg_scan_usb_payloads};')
+          patch_file('src/config.c', r'cfg->auto_install_app\s*=\s*\d+;', f'cfg->auto_install_app      = {cfg_auto_install_app};')
+          patch_file('src/config.c', r'cfg->multi_sources_enabled\s*=\s*\d+;', f'cfg->multi_sources_enabled = {cfg_multi_sources_enabled};')
+
+          patch_file('include/pldmgr.h', r'#define\s+MENU_VERSION\s*"[^"]*"', f'#define MENU_VERSION "{version}"')
+          patch_file('include/pldmgr.h', r'#define\s+MENU_PORT\s+\d+', f'#define MENU_PORT {http_port}')
+          patch_file('include/pldmgr.h', r'#define\s+BASE_DATA_DIR\s*"[^"]*"', f'#define BASE_DATA_DIR "{config_dir}"')
+          patch_file('include/pldmgr.h', r'#define\s+AUTOLOAD_CONFIG_PATH\s*"[^"]*"', f'#define AUTOLOAD_CONFIG_PATH "{autoload_path}"')
+          patch_file('include/pldmgr.h', r'#define\s+PAYLOADS_STORAGE_DIR\s*"[^"]*"', f'#define PAYLOADS_STORAGE_DIR "{payloads_dir}"')
+          if repo_url:
+              patch_file('include/pldmgr.h', r'#define\s+REPOSITORY_SOURCE_URL\s*"[^"]*"', f'#define REPOSITORY_SOURCE_URL "{repo_url}"')
+
+          for folder in ['src', 'include']:
+              if os.path.isdir(folder):
+                  for root, _, files in os.walk(folder):
+                      for f in files:
+                          p = os.path.join(root, f)
+                          patch_file(p, r'8084', http_port)
+                          patch_file(p, r'PLDM00001', title_id)
+                          patch_file(p, r'PLDMGR001', title_id)
+                          patch_file(p, r'PS5 Payload Manager', app_name)
+                          patch_file(p, r'/data/payloads', payloads_dir)
+                          patch_file(p, r'/data/autoload/autoload\.txt', autoload_path)
+                          patch_file(p, r'/data/pldmgr', config_dir)
+                          patch_file(p, r'/mnt/usb0', usb_mount_path)
+                          if repo_url:
+                              patch_file(p, r'https://itsplk\.github\.io/ps5-payloads-mirror/payloads\.json', repo_url)
+
+          print("Patchs C terminés avec succès !")
+          PY_EOF
+
+      - name: "Compilation Frontend & Injection Thème Forcée dans JS/dist"
+        run: |
+          cd workspace
+
+          echo "--> Step 1: Compilation du Frontend..."
+          cd frontend
+          npm install
+          npm run build
+          cd ..
+
+          echo "--> Step 2: Injection JS/CSS Forcée post-build..."
+          python3 - << 'PY_EOF'
+          import os, glob, re
+
+          env = os.environ
+          app_name = env.get('APP_NAME', 'evoX-CoreOS')
+          logo_badge = env.get('LOGO_BADGE_TEXT', 'COREOS')
+
+          bg_canvas = env.get('BG_CANVAS', '#0B0F19')
+          sidebar_bg = env.get('SIDEBAR_BG', '#080b11')
+          active_pill_bg = env.get('ACTIVE_PILL_BG', '#ff0000')
+          active_pill_text = env.get('ACTIVE_PILL_TEXT', '#ffffff')
+          card_bg = env.get('BG_CARD', '#131A29')
+          border_card = env.get('BORDER_CARD', '#1E293B')
+          card_version_color = env.get('CARD_VERSION_COLOR', '#38bdf8')
+
+          # Injection CSS globale ultra-stricte avec !important
+          raw_css = f"""
+          html, body, #root, main {{ background-color: {bg_canvas} !important; }}
+          aside, nav, [class*="sidebar"], [class*="bg-slate-9"], [class*="bg-slate-8"] {{ background-color: {sidebar_bg} !important; }}
+          
+          .bg-blue-600, .bg-sky-500, .bg-sky-600, .bg-blue-500,
+          button[class*="bg-blue"], button[class*="bg-sky"],
+          div[class*="bg-blue"], div[class*="bg-sky"],
+          span[class*="bg-blue"], span[class*="bg-sky"] {{
+            background-color: {active_pill_bg} !important;
+            color: {active_pill_text} !important;
+          }}
+
+          [class*="rounded-xl"], [class*="rounded-lg"], [class*="border-slate"] {{
+            background-color: {card_bg} !important;
+            border-color: {border_card} !important;
+          }}
+
+          .text-sky-400, .text-blue-400, [class*="text-sky-"], [class*="text-blue-"] {{
+            color: {card_version_color} !important;
+          }}
+          """
+
+          dist_index = 'frontend/dist/index.html'
+          if os.path.isfile(dist_index):
+              with open(dist_index, 'r', encoding='utf-8') as fh:
+                  content = fh.read()
+              
+              style_tag = f'<style id="evox-force">{raw_css}</style>'
+              content = content.replace('</head>', style_tag + '</head>')
+              content = re.sub(r'<title>.*?</title>', f'<title>{app_name}</title>', content)
+              
+              with open(dist_index, 'w', encoding='utf-8') as fh:
+                  fh.write(content)
+
+          # Auto-injection du style au chargement JS du bundle React
+          for root, _, files in os.walk('frontend/dist'):
+              for f in files:
+                  p = os.path.join(root, f)
+                  if f.endswith('.js'):
+                      with open(p, 'r', encoding='utf-8', errors='ignore') as fh:
+                          js_content = fh.read()
+                      
+                      js_injection = f"""
+                      (function(){{
+                        var s = document.createElement('style');
+                        s.innerHTML = `{raw_css}`;
+                        if(document.head) document.head.appendChild(s);
+                      }})();
+                      """
+                      js_content = js_injection + js_content
+                      js_content = js_content.replace('PS5 Payload Manager', app_name)
+                      js_content = js_content.replace('PLDMGR', logo_badge)
+                      
+                      with open(p, 'w', encoding='utf-8') as fh:
+                          fh.write(js_content)
+
+          print("[OK] Thème et injections JS/CSS terminés dans frontend/dist/")
+          PY_EOF
+
+          echo "--> Step 3: Régénération des assets C..."
+          if [ -f "tools/gen_assets.py" ]; then
+            python3 tools/gen_assets.py || true
           fi
-          echo "Release $TAG does not exist. Proceeding."
 
-      - name: Build Payload Manager
+      - name: "Compilation Native PS5 via Docker SDK"
         run: |
+          cd workspace
           chmod +x build_release.sh
+
+          echo "Exécution de build_release.sh..."
           ./build_release.sh
 
-      - name: Create Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG="${{ steps.version.outputs.tag }}"
-          VERSION="${{ steps.version.outputs.version }}"
-          # Get the most recent tag before this release to generate the changelog link
-          PREV_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
-          
-          if [ -n "$PREV_TAG" ]; then
-            NOTES="Full Changelog: https://github.com/${{ github.repository }}/compare/$PREV_TAG...$TAG"
+          echo "Vérification et renommage des binaires..."
+          PRODUCED_ELF=$(find . -maxdepth 3 -name "*.elf" | head -n 1)
+
+          if [ -n "$PRODUCED_ELF" ]; then
+            echo "Binaire généré trouvé : $PRODUCED_ELF"
+            cp "$PRODUCED_ELF" "../evox.elf"
+            cp "$PRODUCED_ELF" "../evox_v6.6.6.elf"
+            cd ..
+            echo "=== Fichiers EVOX prêts ==="
+            ls -lh "evox.elf" "evox_v6.6.6.elf"
           else
-            NOTES="First Release."
+            echo "ERREUR: Aucun fichier .elf n'a été produit."
+            exit 1
           fi
-          
-          # Create the release and upload the ELF file
-          gh release create "$TAG" \
-            --title "$TAG" \
-            --notes "$NOTES" \
-            "pldmgr_v${VERSION}.elf"
+
+      - name: "Sauvegarde des Binaires ELF (Artifacts)"
+        uses: actions/upload-artifact@v4
+        with:
+          name: "EVOX-PS5-Payloads"
+          path: |
+            evox.elf
+            evox_v6.6.6.elf
+          retention-days: 30
