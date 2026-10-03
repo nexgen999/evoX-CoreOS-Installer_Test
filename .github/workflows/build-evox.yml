@@ -35,8 +35,8 @@ jobs:
       APP_SUBTITLE: "Gestionnaire de Payloads & Autoloader evoX-CoreOS pour PlayStation 5"
       TITLE_ID: "EVOX00001"
       CUSTOM_ICON_URL: "https://github.com/nexgen999/evox/blob/main/pldmgr_screenshot.png"
-      VERSION: "${{ github.event.inputs.version || '6.6.6' }}"
-      HTTP_PORT: "${{ github.event.inputs.port || '8085' }}"
+      VERSION: "${{} github.event.inputs.version || '6.6.6' }}"
+      HTTP_PORT: "${{} github.event.inputs.port || '8085' }}"
       REPO_URL: "https://nexgen999.github.io/evoX-CoreOS/json/payloads.json"
       BUILD_STRING: "evoX-CoreOS v6.6.6 by nexgen999 (custom build)"
       LOGO_BADGE_TEXT: "COREOS"
@@ -59,14 +59,14 @@ jobs:
 
       # --- Options Graphiques Granulaires du Frontend ---
       BG_CANVAS: "#0B0F19"
-      SIDEBAR_BG: "#000000"
+      SIDEBAR_BG: "#080b11"
       ACTIVE_PILL_BG: "#ff0000"
       ACTIVE_PILL_TEXT: "#ffffff"
       BADGE_BG: "#ff0000"
       BG_CARD: "#131A29"
       BORDER_CARD: "#1E293B"
       CARD_TITLE_COLOR: "#ffffff"
-      CARD_VERSION_COLOR: "#3a96f8"
+      CARD_VERSION_COLOR: "#38bdf8"
 
     steps:
       - name: "Clonage du depot itsPLK/ps5-payload-manager"
@@ -97,72 +97,105 @@ jobs:
           # 2. Si une URL d'icône est fournie dans les variables :
           if [ -n "$CUSTOM_ICON_URL" ]; then
             echo "Téléchargement de l'icône depuis $CUSTOM_ICON_URL..."
-            curl -sSL "$CUSTOM_ICON_URL" -o frontend/public/icon.png
+            RAW_ICON_URL=$(echo "$CUSTOM_ICON_URL" | sed 's|github.com/|raw.githubusercontent.com/|' | sed 's|/blob/|/|')
+            curl -sSL "$RAW_ICON_URL" -o frontend/public/icon.png || curl -sSL "$CUSTOM_ICON_URL" -o frontend/public/icon.png
           fi
 
           echo "Icônes actives dans frontend/public/ :"
           ls -lh frontend/public/
 
       # -----------------------------------------------------------------------
-      # ÉTAPE 1 : PATCH DES SOURCES C, CONFIG.C, PARAM.JSON ET PLDMGR.H
+      # ÉTAPE 1 : PATCH ROBUSTE DES SOURCES C, CONFIG.C, PARAM.JSON ET PLDMGR.H
       # -----------------------------------------------------------------------
       - name: "Patch du Noyau C, config.c, assets/param.json & include/pldmgr.h"
         run: |
           cd workspace
+          python3 - << 'PY_EOF'
+          import os, re
 
-          echo "--> 1.1 assets/param.json : Remplacement du titleName et titleId..."
-          if [ -d "assets" ]; then
-            find assets -name "param.json" -exec sed -i "s|"titleName": *"[^"]*"|"titleName": "$PARAM_TITLE_NAME"|g" {} +
-            find assets -name "param.json" -exec sed -i "s|"titleId": *"[^"]*"|"titleId": "$TITLE_ID"|g" {} +
-          fi
+          env = os.environ
+          app_name = env.get('APP_NAME', 'evoX-CoreOS Payload Manager')
+          param_title = env.get('PARAM_TITLE_NAME', app_name)
+          title_id = env.get('TITLE_ID', 'EVOX00001')
+          version = env.get('VERSION', '6.6.6')
+          http_port = env.get('HTTP_PORT', '8085')
+          repo_url = env.get('REPO_URL', '')
 
-          echo "--> 1.2 src/app_installer.c ligne 101 : Remplacement de PLDM00001 par $TITLE_ID..."
-          if [ -f "src/app_installer.c" ]; then
-            sed -i "s|const char **title_id *= *"[^"]*";|const char *title_id = "$TITLE_ID";|g" src/app_installer.c
-            sed -i "s|PLDM00001|$TITLE_ID|g" src/app_installer.c
-            sed -i "s|Payload Manager|$PARAM_TITLE_NAME|g" src/app_installer.c
-          fi
-          grep -rl "PLDM00001" . | xargs -r sed -i "s|PLDM00001|$TITLE_ID|g"
+          cfg_autoload_enabled = env.get('CFG_AUTOLOAD_ENABLED', '0')
+          cfg_auto_browser_open = env.get('CFG_AUTO_BROWSER_OPEN', '1')
+          cfg_autoload_delay = env.get('CFG_AUTOLOAD_DELAY', '5')
+          cfg_kill_disc_player = env.get('CFG_KILL_DISC_PLAYER', '1')
+          cfg_scan_usb_payloads = env.get('CFG_SCAN_USB_PAYLOADS', '1')
+          cfg_auto_install_app = env.get('CFG_AUTO_INSTALL_APP', '1')
+          cfg_multi_sources_enabled = env.get('CFG_MULTI_SOURCES_ENABLED', '0')
 
-          echo "--> 1.3 src/config.c : Configuration des valeurs par défaut cfg->..."
-          if [ -f "src/config.c" ]; then
-            sed -i "s|cfg->autoload_enabled *= *[0-9]*;|cfg->autoload_enabled      = $CFG_AUTOLOAD_ENABLED;|" src/config.c
-            sed -i "s|cfg->auto_browser_open *= *[0-9]*;|cfg->auto_browser_open     = $CFG_AUTO_BROWSER_OPEN;|" src/config.c
-            sed -i "s|cfg->autoload_delay *= *[0-9]*;|cfg->autoload_delay        = $CFG_AUTOLOAD_DELAY;|" src/config.c
-            sed -i "s|cfg->kill_disc_player *= *[0-9]*;|cfg->kill_disc_player      = $CFG_KILL_DISC_PLAYER;|" src/config.c
-            sed -i "s|cfg->scan_usb_payloads *= *[0-9]*;|cfg->scan_usb_payloads     = $CFG_SCAN_USB_PAYLOADS;|" src/config.c
-            sed -i "s|cfg->auto_install_app *= *[0-9]*;|cfg->auto_install_app      = $CFG_AUTO_INSTALL_APP;|" src/config.c
-            sed -i "s|cfg->multi_sources_enabled *= *[0-9]*;|cfg->multi_sources_enabled = $CFG_MULTI_SOURCES_ENABLED;|" src/config.c
-          fi
+          payloads_dir = env.get('PAYLOADS_DIR', '/data/payloads')
+          autoload_path = env.get('AUTOLOAD_PATH', '/data/autoload/autoload.txt')
+          config_dir = env.get('CONFIG_DIR', '/data/payload_manager')
+          usb_mount_path = env.get('USB_MOUNT_PATH', '/mnt/usb0')
 
-          echo "--> 1.4 include/pldmgr.h : Remplacement de tous les #define..."
-          if [ -f "include/pldmgr.h" ]; then
-            sed -i "s|#define MENU_VERSION *"[^"]*"|#define MENU_VERSION "$VERSION"|" include/pldmgr.h
-            sed -i "s|#define MENU_PORT *[0-9]*|#define MENU_PORT $HTTP_PORT|" include/pldmgr.h
-            sed -i "s|#define BASE_DATA_DIR *"[^"]*"|#define BASE_DATA_DIR "$CONFIG_DIR"|" include/pldmgr.h
-            sed -i "s|#define AUTOLOAD_CONFIG_PATH *"[^"]*"|#define AUTOLOAD_CONFIG_PATH "$AUTOLOAD_PATH"|" include/pldmgr.h
-            sed -i "s|#define PAYLOADS_STORAGE_DIR *"[^"]*"|#define PAYLOADS_STORAGE_DIR "$PAYLOADS_DIR"|" include/pldmgr.h
-            sed -i "s|#define REPOSITORY_SOURCE_URL *"[^"]*"|#define REPOSITORY_SOURCE_URL "$REPO_URL"|" include/pldmgr.h
-          fi
+          def patch_file(file_path, pattern, replacement):
+              if not os.path.isfile(file_path):
+                  return
+              with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                  orig = f.read()
+              modified = re.sub(pattern, replacement, orig)
+              if modified != orig:
+                  with open(file_path, 'w', encoding='utf-8') as f:
+                      f.write(modified)
+                  print(f"[OK] Patched {file_path}")
 
-          echo "--> 1.5 Chemins généraux (/data/pldmgr, /data/payloads, /mnt/usb0)..."
-          find include src -type f -exec sed -i "s|/data/payloads|$PAYLOADS_DIR|g" {} +
-          find include src -type f -exec sed -i "s|/data/autoload/autoload.txt|$AUTOLOAD_PATH|g" {} +
-          find include src -type f -exec sed -i "s|/data/pldmgr|$CONFIG_DIR|g" {} +
-          find include src -type f -exec sed -i "s|/mnt/usb0|$USB_MOUNT_PATH|g" {} +
+          # 1. assets/**/param.json
+          if os.path.isdir('assets'):
+              for root, _, files in os.walk('assets'):
+                  for f in files:
+                      if f.endswith('.json'):
+                          p = os.path.join(root, f)
+                          patch_file(p, r'"titleName":\s*"[^"]*"', f'"titleName": "{param_title}"')
+                          patch_file(p, r'"titleId":\s*"[^"]*"', f'"titleId": "{title_id}"')
 
-          echo "--> 1.6 Port HTTP ($HTTP_PORT) et URL du dépôt ($REPO_URL)..."
-          if [ -f "src/http_server.c" ]; then
-            sed -i "s|8084|$HTTP_PORT|g" src/http_server.c
-          fi
-          grep -rl "8084" src/ include/ | xargs -r sed -i "s|8084|$HTTP_PORT|g"
-          grep -rl "https://itsplk.github.io/ps5-payloads-mirror/payloads.json" . | xargs -r sed -i "s|https://itsplk.github.io/ps5-payloads-mirror/payloads.json|$REPO_URL|g"
-          grep -rl "itsplk.github.io" . | xargs -r sed -i "s|https://itsplk.github.io/ps5-payloads-mirror/payloads.json|$REPO_URL|g"
+          # 2. src/app_installer.c
+          patch_file('src/app_installer.c', r'const\s+char\s*\*title_id\s*=\s*"[^"]*";', f'const char *title_id = "{title_id}";')
+          patch_file('src/app_installer.c', r'PLDM00001', title_id)
+          patch_file('src/app_installer.c', r'Payload Manager', param_title)
 
-          echo "--> 1.7 Nom global de l'application..."
-          grep -rl "PS5 Payload Manager" src/ include/ | xargs -r sed -i "s|PS5 Payload Manager|$APP_NAME|g"
+          # 3. src/config.c (Defaults)
+          patch_file('src/config.c', r'cfg->autoload_enabled\s*=\s*\d+;', f'cfg->autoload_enabled      = {cfg_autoload_enabled};')
+          patch_file('src/config.c', r'cfg->auto_browser_open\s*=\s*\d+;', f'cfg->auto_browser_open     = {cfg_auto_browser_open};')
+          patch_file('src/config.c', r'cfg->autoload_delay\s*=\s*\d+;', f'cfg->autoload_delay        = {cfg_autoload_delay};')
+          patch_file('src/config.c', r'cfg->kill_disc_player\s*=\s*\d+;', f'cfg->kill_disc_player      = {cfg_kill_disc_player};')
+          patch_file('src/config.c', r'cfg->scan_usb_payloads\s*=\s*\d+;', f'cfg->scan_usb_payloads     = {cfg_scan_usb_payloads};')
+          patch_file('src/config.c', r'cfg->auto_install_app\s*=\s*\d+;', f'cfg->auto_install_app      = {cfg_auto_install_app};')
+          patch_file('src/config.c', r'cfg->multi_sources_enabled\s*=\s*\d+;', f'cfg->multi_sources_enabled = {cfg_multi_sources_enabled};')
 
-          echo "Patchs C et configuration appliques avec succes !"
+          # 4. include/pldmgr.h (Toutes les options)
+          patch_file('include/pldmgr.h', r'#define\s+MENU_VERSION\s*"[^"]*"', f'#define MENU_VERSION "{version}"')
+          patch_file('include/pldmgr.h', r'#define\s+MENU_PORT\s+\d+', f'#define MENU_PORT {http_port}')
+          patch_file('include/pldmgr.h', r'#define\s+BASE_DATA_DIR\s*"[^"]*"', f'#define BASE_DATA_DIR "{config_dir}"')
+          patch_file('include/pldmgr.h', r'#define\s+AUTOLOAD_CONFIG_PATH\s*"[^"]*"', f'#define AUTOLOAD_CONFIG_PATH "{autoload_path}"')
+          patch_file('include/pldmgr.h', r'#define\s+PAYLOADS_STORAGE_DIR\s*"[^"]*"', f'#define PAYLOADS_STORAGE_DIR "{payloads_dir}"')
+          if repo_url:
+              patch_file('include/pldmgr.h', r'#define\s+REPOSITORY_SOURCE_URL\s*"[^"]*"', f'#define REPOSITORY_SOURCE_URL "{repo_url}"')
+
+          # 5. Remplacements globaux dans src et include
+          for folder in ['src', 'include']:
+              if os.path.isdir(folder):
+                  for root, _, files in os.walk(folder):
+                      for f in files:
+                          p = os.path.join(root, f)
+                          patch_file(p, r'8084', http_port)
+                          patch_file(p, r'PLDM00001', title_id)
+                          patch_file(p, r'PLDMGR001', title_id)
+                          patch_file(p, r'PS5 Payload Manager', app_name)
+                          patch_file(p, r'/data/payloads', payloads_dir)
+                          patch_file(p, r'/data/autoload/autoload\.txt', autoload_path)
+                          patch_file(p, r'/data/pldmgr', config_dir)
+                          patch_file(p, r'/mnt/usb0', usb_mount_path)
+                          if repo_url:
+                              patch_file(p, r'https://itsplk\.github\.io/ps5-payloads-mirror/payloads\.json', repo_url)
+
+          print("Patchs C terminés avec succès !")
+          PY_EOF
 
       # -----------------------------------------------------------------------
       # ÉTAPE 2 : PERSONNALISATION GRAPHIQUE DU FRONTEND (THÈME & COULEURS)
@@ -170,44 +203,75 @@ jobs:
       - name: "Injection des Options Graphiques & Thème Visuel"
         run: |
           cd workspace
+          python3 - << 'PY_EOF'
+          import os, re
 
-          echo "--> 2.1 Remplacement du bandeau build, logo badge et textes..."
-          find frontend -type f \( -name "*.html" -o -name "*.vue" -o -name "*.tsx" -o -name "*.ts" -o -name "*.js" -o -name "*.json" \) -exec sed -i "s|PS5 Payload Manager|$APP_NAME|g" {} +
-          find frontend -type f \( -name "*.html" -o -name "*.vue" -o -name "*.tsx" -o -name "*.ts" -o -name "*.js" -o -name "*.json" \) -exec sed -i "s|PLDMGR|$LOGO_BADGE_TEXT|g" {} +
+          env = os.environ
+          app_name = env.get('APP_NAME', 'evoX-CoreOS')
+          logo_badge = env.get('LOGO_BADGE_TEXT', 'COREOS')
+          build_string = env.get('BUILD_STRING', '')
 
-          cat << EOF > /tmp/evox_theme.css
+          bg_canvas = env.get('BG_CANVAS', '#0B0F19')
+          sidebar_bg = env.get('SIDEBAR_BG', '#000000')
+          active_pill_bg = env.get('ACTIVE_PILL_BG', '#ff0000')
+          active_pill_text = env.get('ACTIVE_PILL_TEXT', '#ffffff')
+          card_bg = env.get('BG_CARD', '#131A29')
+          border_card = env.get('BORDER_CARD', '#1E293B')
+          card_version_color = env.get('CARD_VERSION_COLOR', '#3a96f8')
+
+          # 1. Remplacements de texte dans le code source Frontend
+          if os.path.isdir('frontend'):
+              for root, _, files in os.walk('frontend'):
+                  if 'node_modules' in root or '.git' in root or 'dist' in root:
+                      continue
+                  for f in files:
+                      if f.endswith(('.html', '.vue', '.tsx', '.ts', '.js', '.json')):
+                          p = os.path.join(root, f)
+                          with open(p, 'r', encoding='utf-8', errors='ignore') as fh:
+                              c = fh.read()
+                          nc = c.replace('PS5 Payload Manager', app_name)
+                          nc = nc.replace('PLDMGR', logo_badge)
+                          if build_string and ('Payload Manager v' in nc or 'built at' in nc):
+                              nc = re.sub(r'Payload Manager v[^\n<"]+', build_string, nc)
+                          if nc != c:
+                              with open(p, 'w', encoding='utf-8') as fh:
+                                  fh.write(nc)
+
+          # 2. Injection CSS personnalisé dans frontend/index.html
+          css_block = f"""
           <style id="evox-custom-theme">
-            :root {
-              --primary-color: $ACTIVE_PILL_BG !important;
-              --accent-color: $ACTIVE_PILL_BG !important;
-              --bg-color: $BG_CANVAS !important;
-              --sidebar-bg: $SIDEBAR_BG !important;
-              --card-bg: $BG_CARD !important;
-              --card-border: $BORDER_CARD !important;
-            }
-            body {
-              background-color: $BG_CANVAS !important;
-            }
-            aside, nav.sidebar {
-              background-color: $SIDEBAR_BG !important;
-            }
-            /* Bouton actif (DASHBOARD) */
-            .bg-blue-600, .bg-sky-500, .bg-sky-600 {
-              background-color: $ACTIVE_PILL_BG !important;
-              color: $ACTIVE_PILL_TEXT !important;
-            }
-            /* Titres et versions des cartes */
-            .text-sky-400, .text-blue-400 {
-              color: $CARD_VERSION_COLOR !important;
-            }
+            :root {{
+              --primary-color: {active_pill_bg} !important;
+              --accent-color: {active_pill_bg} !important;
+              --bg-color: {bg_canvas} !important;
+              --sidebar-bg: {sidebar_bg} !important;
+              --card-bg: {card_bg} !important;
+              --card-border: {border_card} !important;
+            }}
+            body {{ background-color: {bg_canvas} !important; }}
+            aside, nav.sidebar {{ background-color: {sidebar_bg} !important; }}
+            .bg-blue-600, .bg-sky-500, .bg-sky-600 {{
+              background-color: {active_pill_bg} !important;
+              color: {active_pill_text} !important;
+            }}
+            .text-sky-400, .text-blue-400 {{
+              color: {card_version_color} !important;
+            }}
           </style>
-          EOF
+          """
 
-          # Injection juste avant la fermeture </head>
-          if [ -f "frontend/index.html" ]; then
-            sed -i 's|</head>|'"$(cat /tmp/evox_theme.css)"'</head>|' frontend/index.html || true
-            sed -i "s|<title>.*</title>|<title>$APP_NAME</title>|g" frontend/index.html
-          fi
+          idx = 'frontend/index.html'
+          if os.path.isfile(idx):
+              with open(idx, 'r', encoding='utf-8') as fh:
+                  content = fh.read()
+              content = re.sub(r'<title>.*?</title>', f'<title>{app_name}</title>', content)
+              if '</head>' in content:
+                  content = content.replace('</head>', f'{css_block}
+</head>')
+              with open(idx, 'w', encoding='utf-8') as fh:
+                  fh.write(content)
+              print("[OK] Thème injecté avec succès dans frontend/index.html")
+          PY_EOF
 
       # -----------------------------------------------------------------------
       # ÉTAPE 3 : RECONSTRUCTION DU FRONTEND & MISE À JOUR DES ASSETS C
