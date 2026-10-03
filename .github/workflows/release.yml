@@ -23,16 +23,10 @@ jobs:
     env:
       APP_NAME: "evoX-CoreOS"
       PARAM_TITLE_NAME: "evoX-CoreOS"
-      APP_SUBTITLE: "Gestionnaire de Payloads & Autoloader evoX-CoreOS"
       TITLE_ID: "EVOX00001"
       CUSTOM_ICON_URL: "https://raw.githubusercontent.com/nexgen999/evoX-CoreOS-Installer_Test/main/assets/icon0.png"
       VERSION: "${{ github.event.inputs.version || '5.2.1F' }}"
       REPO_URL: "https://nexgen999.github.io/evoX-CoreOS/json/payloads.json"
-      BUILD_STRING: "evoX-CoreOS v5.2.1 Fork"
-
-      PAYLOADS_DIR: "/data/evox/payloads"
-      AUTOLOAD_PATH: "/data/evox/config/autoload.txt"
-      CONFIG_DIR: "/data/evox"
 
     steps:
       - name: "Clonage du depot original"
@@ -44,17 +38,14 @@ jobs:
         with:
           node-version: 20
 
-      - name: "Application de l'icône sur assets/icon0.png"
+      - name: "Remplacement de l'icône"
         run: |
           cd workspace
-          echo "Téléchargement de l'icône..."
           curl -sSL "$CUSTOM_ICON_URL" -o assets/icon0.png
-          
-          # Copie minimale pour la compilation frontend
           mkdir -p frontend/public
           cp -f assets/icon0.png frontend/public/icon0.png
 
-      - name: "Patch des constantes C & assets/param.json"
+      - name: "Patch strict : ID, Nom et JSON"
         run: |
           cd workspace
           python3 - << 'PY_EOF'
@@ -67,10 +58,6 @@ jobs:
           version = env.get('VERSION', '5.2.1F')
           repo_url = env.get('REPO_URL', '')
 
-          payloads_dir = env.get('PAYLOADS_DIR', '/data/evox/payloads')
-          autoload_path = env.get('AUTOLOAD_PATH', '/data/evox/config/autoload.txt')
-          config_dir = env.get('CONFIG_DIR', '/data/evox')
-
           def patch_file(file_path, pattern, replacement):
               if not os.path.isfile(file_path):
                   return
@@ -82,7 +69,7 @@ jobs:
                       f.write(modified)
                   print(f"[OK] Patched {file_path}")
 
-          # Patch des métadonnées du package
+          # Patch des métadonnées du package (assets/param.json)
           if os.path.isdir('assets'):
               for root, _, files in os.walk('assets'):
                   for f in files:
@@ -91,16 +78,13 @@ jobs:
                           patch_file(p, r'"titleName":\s*"[^"]*"', f'"titleName": "{param_title}"')
                           patch_file(p, r'"titleId":\s*"[^"]*"', f'"titleId": "{title_id}"')
 
-          # Patch C / headers
+          # Patch minimal des headers & sources C
           patch_file('src/app_installer.c', r'const\s+char\s*\*title_id\s*=\s*"[^"]*";', f'const char *title_id = "{title_id}";')
           patch_file('include/pldmgr.h', r'#define\s+MENU_VERSION\s*"[^"]*"', f'#define MENU_VERSION "{version}"')
-          patch_file('include/pldmgr.h', r'#define\s+BASE_DATA_DIR\s*"[^"]*"', f'#define BASE_DATA_DIR "{config_dir}"')
-          patch_file('include/pldmgr.h', r'#define\s+AUTOLOAD_CONFIG_PATH\s*"[^"]*"', f'#define AUTOLOAD_CONFIG_PATH "{autoload_path}"')
-          patch_file('include/pldmgr.h', r'#define\s+PAYLOADS_STORAGE_DIR\s*"[^"]*"', f'#define PAYLOADS_STORAGE_DIR "{payloads_dir}"')
+          
           if repo_url:
               patch_file('include/pldmgr.h', r'#define\s+REPOSITORY_SOURCE_URL\s*"[^"]*"', f'#define REPOSITORY_SOURCE_URL "{repo_url}"')
 
-          # Alignement ciblé des chemins et identifiants dans les sources C
           for folder in ['src', 'include']:
               if os.path.isdir(folder):
                   for root, _, files in os.walk(folder):
@@ -109,13 +93,10 @@ jobs:
                           patch_file(p, r'PLDM00001', title_id)
                           patch_file(p, r'PLDMGR001', title_id)
                           patch_file(p, r'PS5 Payload Manager', app_name)
-                          patch_file(p, r'/data/payloads', payloads_dir)
-                          patch_file(p, r'/data/autoload/autoload\.txt', autoload_path)
-                          patch_file(p, r'/data/pldmgr', config_dir)
                           if repo_url:
                               patch_file(p, r'https://itsplk\.github\.io/ps5-payloads-mirror/payloads\.json', repo_url)
 
-          print("Configuration minimale appliquée.")
+          print("Patch minimal appliqué.")
           PY_EOF
 
       - name: "Build Frontend standard"
@@ -131,7 +112,7 @@ jobs:
             python3 tools/gen_assets.py || true
           fi
 
-      - name: "Compilation Native PS5 via Docker SDK"
+      - name: "Compilation Native PS5"
         run: |
           cd workspace
           chmod +x build_release.sh
@@ -142,10 +123,10 @@ jobs:
           if [ -n "$PRODUCED_ELF" ]; then
             cp "$PRODUCED_ELF" "../evox.elf"
             cd ..
-            echo "=== Fichier EVOX généré avec succès ==="
+            echo "=== Fichier EVOX généré ==="
             ls -lh "evox.elf"
           else
-            echo "ERREUR: La compilation n'a pas produit de fichier .elf."
+            echo "ERREUR: La compilation a échoué."
             exit 1
           fi
 
