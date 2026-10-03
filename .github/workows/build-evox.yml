@@ -55,7 +55,7 @@ jobs:
           #define APP_SUBTITLE "Gestionnaire de Payloads & Autoloader EVOX pour PlayStation 5"
           #define APP_VERSION "0.0.1"
           #define APP_AUTHOR "nexgen999"
-          #define FORK_URL "https://github.com/MonPseudo/ps5-payload-manager"
+          #define FORK_URL "https://github.com/nexgen999/evox"
 
           #define ELF_NAME "evox.elf"
           #define ELF_VERSIONED_NAME "evox_v0.0.1.elf"
