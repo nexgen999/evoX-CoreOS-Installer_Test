@@ -24,25 +24,19 @@ jobs:
     name: "Compilation EVOX ELF"
     runs-on: ubuntu-latest
 
-    # =========================================================================
-    # VARIABLES DE PERSONNALISATION VISUELLE & CHEMINS PS5
-    # Vous pouvez modifier directement ces valeurs ici :
-    # =========================================================================
     env:
-      # --- Identité, Titres & Accueil PS5 ---
       APP_NAME: "evoX-CoreOS Payload Manager"
       PARAM_TITLE_NAME: "evoX-CoreOS Payload Manager"
       APP_SUBTITLE: "Gestionnaire de Payloads & Autoloader evoX-CoreOS pour PlayStation 5"
       TITLE_ID: "EVOX00001"
       CUSTOM_ICON_URL: "https://github.com/nexgen999/evox/blob/main/pldmgr_screenshot.png"
-      VERSION: "${{} github.event.inputs.version || '6.6.6' }}"
-      HTTP_PORT: "${{} github.event.inputs.port || '8085' }}"
+      VERSION: "${{ github.event.inputs.version || '6.6.6' }}"
+      HTTP_PORT: "${{ github.event.inputs.port || '8085' }}"
       REPO_URL: "https://nexgen999.github.io/evoX-CoreOS/json/payloads.json"
       BUILD_STRING: "evoX-CoreOS v6.6.6 by nexgen999 (custom build)"
       LOGO_BADGE_TEXT: "COREOS"
       DONATE_TEXT: "♡ DONATE"
 
-      # --- Options du Démon C (src/config.c) ---
       CFG_AUTOLOAD_ENABLED: "0"
       CFG_AUTO_BROWSER_OPEN: "1"
       CFG_AUTOLOAD_DELAY: "5"
@@ -51,13 +45,11 @@ jobs:
       CFG_AUTO_INSTALL_APP: "1"
       CFG_MULTI_SOURCES_ENABLED: "1"
 
-      # --- Chemins Système PS5 (include/pldmgr.h & sources C) ---
       PAYLOADS_DIR: "/data/evox/payloads"
       AUTOLOAD_PATH: "/data/evox/config/autoload.txt"
       CONFIG_DIR: "/data/evox"
       USB_MOUNT_PATH: "/mnt/usb0"
 
-      # --- Options Graphiques Granulaires du Frontend ---
       BG_CANVAS: "#0B0F19"
       SIDEBAR_BG: "#080b11"
       ACTIVE_PILL_BG: "#ff0000"
@@ -79,14 +71,9 @@ jobs:
         with:
           node-version: 20
 
-      # -----------------------------------------------------------------------
-      # ÉTAPE 0 : REMPLACEMENT DES ICÔNES DE FRONTEND/PUBLIC/
-      # -----------------------------------------------------------------------
       - name: "Remplacement des Icônes Personnalisées (frontend/public)"
         run: |
           cd workspace
-
-          # 1. Si un dossier custom_icons existe dans votre dépôt GitHub :
           if [ -d "../custom_icons" ]; then
             echo "Copie des icônes depuis custom_icons/ vers frontend/public/..."
             cp -rf ../custom_icons/* frontend/public/
@@ -94,7 +81,6 @@ jobs:
             cp -rf custom_icons/* frontend/public/
           fi
 
-          # 2. Si une URL d'icône est fournie dans les variables :
           if [ -n "$CUSTOM_ICON_URL" ]; then
             echo "Téléchargement de l'icône depuis $CUSTOM_ICON_URL..."
             RAW_ICON_URL=$(echo "$CUSTOM_ICON_URL" | sed 's|github.com/|raw.githubusercontent.com/|' | sed 's|/blob/|/|')
@@ -104,9 +90,6 @@ jobs:
           echo "Icônes actives dans frontend/public/ :"
           ls -lh frontend/public/
 
-      # -----------------------------------------------------------------------
-      # ÉTAPE 1 : PATCH ROBUSTE DES SOURCES C, CONFIG.C, PARAM.JSON ET PLDMGR.H
-      # -----------------------------------------------------------------------
       - name: "Patch du Noyau C, config.c, assets/param.json & include/pldmgr.h"
         run: |
           cd workspace
@@ -145,7 +128,6 @@ jobs:
                       f.write(modified)
                   print(f"[OK] Patched {file_path}")
 
-          # 1. assets/**/param.json
           if os.path.isdir('assets'):
               for root, _, files in os.walk('assets'):
                   for f in files:
@@ -154,12 +136,10 @@ jobs:
                           patch_file(p, r'"titleName":\s*"[^"]*"', f'"titleName": "{param_title}"')
                           patch_file(p, r'"titleId":\s*"[^"]*"', f'"titleId": "{title_id}"')
 
-          # 2. src/app_installer.c
           patch_file('src/app_installer.c', r'const\s+char\s*\*title_id\s*=\s*"[^"]*";', f'const char *title_id = "{title_id}";')
           patch_file('src/app_installer.c', r'PLDM00001', title_id)
           patch_file('src/app_installer.c', r'Payload Manager', param_title)
 
-          # 3. src/config.c (Defaults)
           patch_file('src/config.c', r'cfg->autoload_enabled\s*=\s*\d+;', f'cfg->autoload_enabled      = {cfg_autoload_enabled};')
           patch_file('src/config.c', r'cfg->auto_browser_open\s*=\s*\d+;', f'cfg->auto_browser_open     = {cfg_auto_browser_open};')
           patch_file('src/config.c', r'cfg->autoload_delay\s*=\s*\d+;', f'cfg->autoload_delay        = {cfg_autoload_delay};')
@@ -168,7 +148,6 @@ jobs:
           patch_file('src/config.c', r'cfg->auto_install_app\s*=\s*\d+;', f'cfg->auto_install_app      = {cfg_auto_install_app};')
           patch_file('src/config.c', r'cfg->multi_sources_enabled\s*=\s*\d+;', f'cfg->multi_sources_enabled = {cfg_multi_sources_enabled};')
 
-          # 4. include/pldmgr.h (Toutes les options)
           patch_file('include/pldmgr.h', r'#define\s+MENU_VERSION\s*"[^"]*"', f'#define MENU_VERSION "{version}"')
           patch_file('include/pldmgr.h', r'#define\s+MENU_PORT\s+\d+', f'#define MENU_PORT {http_port}')
           patch_file('include/pldmgr.h', r'#define\s+BASE_DATA_DIR\s*"[^"]*"', f'#define BASE_DATA_DIR "{config_dir}"')
@@ -177,7 +156,6 @@ jobs:
           if repo_url:
               patch_file('include/pldmgr.h', r'#define\s+REPOSITORY_SOURCE_URL\s*"[^"]*"', f'#define REPOSITORY_SOURCE_URL "{repo_url}"')
 
-          # 5. Remplacements globaux dans src et include
           for folder in ['src', 'include']:
               if os.path.isdir(folder):
                   for root, _, files in os.walk(folder):
@@ -197,9 +175,6 @@ jobs:
           print("Patchs C terminés avec succès !")
           PY_EOF
 
-      # -----------------------------------------------------------------------
-      # ÉTAPE 2 : PERSONNALISATION GRAPHIQUE DU FRONTEND (THÈME & COULEURS)
-      # -----------------------------------------------------------------------
       - name: "Injection des Options Graphiques & Thème Visuel"
         run: |
           cd workspace
@@ -219,7 +194,6 @@ jobs:
           border_card = env.get('BORDER_CARD', '#1E293B')
           card_version_color = env.get('CARD_VERSION_COLOR', '#3a96f8')
 
-          # 1. Remplacements de texte dans le code source Frontend
           if os.path.isdir('frontend'):
               for root, _, files in os.walk('frontend'):
                   if 'node_modules' in root or '.git' in root or 'dist' in root:
@@ -237,9 +211,7 @@ jobs:
                               with open(p, 'w', encoding='utf-8') as fh:
                                   fh.write(nc)
 
-          # 2. Injection CSS personnalisé dans frontend/index.html
-          css_block = f"""
-          <style id="evox-custom-theme">
+          css_block = f"""<style id="evox-custom-theme">
             :root {{
               --primary-color: {active_pill_bg} !important;
               --accent-color: {active_pill_bg} !important;
@@ -257,8 +229,7 @@ jobs:
             .text-sky-400, .text-blue-400 {{
               color: {card_version_color} !important;
             }}
-          </style>
-          """
+          </style>"""
 
           idx = 'frontend/index.html'
           if os.path.isfile(idx):
@@ -266,16 +237,12 @@ jobs:
                   content = fh.read()
               content = re.sub(r'<title>.*?</title>', f'<title>{app_name}</title>', content)
               if '</head>' in content:
-                  content = content.replace('</head>', f'{css_block}
-</head>')
+                  content = content.replace('</head>', css_block + '\n</head>')
               with open(idx, 'w', encoding='utf-8') as fh:
                   fh.write(content)
               print("[OK] Thème injecté avec succès dans frontend/index.html")
           PY_EOF
 
-      # -----------------------------------------------------------------------
-      # ÉTAPE 3 : RECONSTRUCTION DU FRONTEND & MISE À JOUR DES ASSETS C
-      # -----------------------------------------------------------------------
       - name: "Reconstruction Frontend & Régénération des Assets C"
         run: |
           cd workspace
@@ -299,9 +266,6 @@ jobs:
 
           echo "Frontend reconstruit et assets réintégrés avec succès !"
 
-      # -----------------------------------------------------------------------
-      # ÉTAPE 4 : COMPILATION DU DÉMON PS5 VIA DOCKER SDK
-      # -----------------------------------------------------------------------
       - name: "Compilation Native PS5 via Docker SDK"
         run: |
           cd workspace
@@ -325,9 +289,6 @@ jobs:
             exit 1
           fi
 
-      # -----------------------------------------------------------------------
-      # ÉTAPE 5 : TÉLÉCHARGEMENT DIRECT DES ARTIFACTS
-      # -----------------------------------------------------------------------
       - name: "Sauvegarde des Binaires ELF (Artifacts)"
         uses: actions/upload-artifact@v4
         with:
