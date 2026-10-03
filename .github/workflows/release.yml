@@ -29,7 +29,7 @@ jobs:
       PARAM_TITLE_NAME: "evoX-CoreOS Payload Manager"
       APP_SUBTITLE: "Gestionnaire de Payloads & Autoloader evoX-CoreOS pour PlayStation 5"
       TITLE_ID: "EVOX00001"
-      CUSTOM_ICON_URL: "https://github.com/nexgen999/evox/blob/main/assets/icon0.png"
+      CUSTOM_ICON_URL: "https://raw.githubusercontent.com/nexgen999/evoX-CoreOS-Installer_Test/main/assets/icon0.png"
       VERSION: "${{ github.event.inputs.version || '6.6.6' }}"
       HTTP_PORT: "${{ github.event.inputs.port || '8085' }}"
       REPO_URL: "https://nexgen999.github.io/evoX-CoreOS/json/payloads.json"
@@ -71,27 +71,31 @@ jobs:
         with:
           node-version: 20
 
-      - name: "Remplacement Strict de assets/icon0.png & Icônes Frontend"
+      - name: "Téléchargement & Remplacement Stricte de assets/icon0.png"
         run: |
           cd workspace
-          if [ -n "$CUSTOM_ICON_URL" ]; then
-            echo "--> Conversion URL GitHub Blob vers Raw..."
-            RAW_ICON_URL=$(echo "$CUSTOM_ICON_URL" | sed 's|github.com/|raw.githubusercontent.com/|' | sed 's|/blob/|/|')
-            
-            echo "--> Téléchargement de l'icône depuis : $RAW_ICON_URL"
-            curl -sSL "$RAW_ICON_URL" -o /tmp/custom_icon.png
+          
+          echo "--> Téléchargement de l'icône depuis : $CUSTOM_ICON_URL"
+          curl -sSL "$CUSTOM_ICON_URL" -o /tmp/custom_icon.png
 
-            # 1. Remplacement direct de assets/icon0.png
-            if [ -f "assets/icon0.png" ]; then
-              cp -f /tmp/custom_icon.png assets/icon0.png
-              echo "[OK] assets/icon0.png remplacé."
-            fi
+          if [ -s /tmp/custom_icon.png ]; then
+            # 1. Remplacement strict à l'emplacement exact assets/icon0.png du dépôt source
+            mkdir -p assets
+            cp -f /tmp/custom_icon.png assets/icon0.png
+            echo "[OK] assets/icon0.png remplacé."
 
-            # 2. Écrasement global dans assets/ et frontend/
+            # 2. Copie pour le public frontend et remplacement des icônes résiduelles
+            mkdir -p frontend/public
+            cp -f /tmp/custom_icon.png frontend/public/icon0.png
+            cp -f /tmp/custom_icon.png frontend/public/favicon.ico
+
             find assets/ -type f \( -name "*.png" -o -name "*.ico" \) -exec cp -f /tmp/custom_icon.png {} \;
-            find frontend/ -type f \( -name "*.png" -o -name "*.ico" -o -name "*.svg" \) -exec cp -f /tmp/custom_icon.png {} \;
+            find frontend/ -type f \( -name "*.png" -o -name "*.ico" \) -exec cp -f /tmp/custom_icon.png {} \;
             
-            echo "[OK] Toutes les icônes du projet ont été écrasées."
+            echo "[OK] Toutes les icônes de workspace/ ont été synchronisées."
+          else
+            echo "[ERREUR] Impossible de télécharger l'icône depuis $CUSTOM_ICON_URL"
+            exit 1
           fi
 
       - name: "Patch du Noyau C, config.c, assets/param.json & include/pldmgr.h"
@@ -205,7 +209,6 @@ jobs:
           border_card = env.get('BORDER_CARD', '#1E293B')
           card_version_color = env.get('CARD_VERSION_COLOR', '#38bdf8')
 
-          # Injection CSS globale ultra-stricte avec !important
           raw_css = f"""
           html, body, #root, main {{ background-color: {bg_canvas} !important; }}
           aside, nav, [class*="sidebar"], [class*="bg-slate-9"], [class*="bg-slate-8"] {{ background-color: {sidebar_bg} !important; }}
@@ -240,7 +243,6 @@ jobs:
               with open(dist_index, 'w', encoding='utf-8') as fh:
                   fh.write(content)
 
-          # Auto-injection du style au chargement JS du bundle React
           for root, _, files in os.walk('frontend/dist'):
               for f in files:
                   p = os.path.join(root, f)
