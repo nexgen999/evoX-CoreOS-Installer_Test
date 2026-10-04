@@ -1,7 +1,7 @@
 #pragma once
 
 /* Network Settings */
-#define MENU_PORT 8085
+define MENU_PORT 8085
 #define ELFLDR_PORT 9021
 
 /* Routes */
@@ -38,14 +38,14 @@
 #define ROUTE_PROCESS_KILL "/process_kill"
 #define ROUTE_HISTORY_LIST "/history_list"
 
-#define MENU_VERSION "0.5.0"
-#define AUTOLOAD_CONFIG_PATH "/data/evox/config/autoload.txt"
-#define PLDMGR_CONFIG_PATH "/data/evox/config/evox_config.txt"
-#define REPOSITORY_CACHE_PATH "/data/evox/config/repository_cache.json"
-#define PAYLOADS_STORAGE_DIR "/data/evox/payloads"
-#define REPOSITORY_SOURCE_URL                                                  \
+define MENU_VERSION "0.5.0F"
+define AUTOLOAD_CONFIG_PATH "/data/evox/config/autoload.txt"
+define PLDMGR_CONFIG_PATH "/data/evox/config/evox_config.txt"
+define REPOSITORY_CACHE_PATH "/data/evox/config/repository_cache.json"
+define PAYLOADS_STORAGE_DIR "/data/evox/payloads"
+define REPOSITORY_SOURCE_URL                                                  \
   "https://nexgen999.github.io/evoX-CoreOS/json/payloads.json"
-#define REPOSITORY_REFRESH_INTERVAL_SEC 86400
+define REPOSITORY_REFRESH_INTERVAL_SEC 86400
 
 /* Logging (implementation in log_server.c) */
 void pldmgr_log(const char *fmt, ...);
@@ -56,9 +56,9 @@ int pldmgr_server_is_active();
 #include "utils.h"
 
 /* Paths */
-#define BASE_DATA_DIR "/data/evox"
-#define SOURCES_CONFIG_PATH "/data/evox/config/sources.json"
-#define MAX_SOURCES 50
+define BASE_DATA_DIR "/data/evox"
+define SOURCES_CONFIG_PATH "/data/evox/config/sources.json"
+define MAX_SOURCES 50
 
 /* Scan Locations (Internal + 8 USB ports) */
 static const char *SCAN_DIRS[] = {
