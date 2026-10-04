@@ -126,10 +126,10 @@ int pldmgr_install_app_if_needed(void) {
 
   if (stat(base_dir, &st) == 0) {
     pldmgr_log("[PLDMGR] Updating existing app launcher (%s)...\n", title_id);
-    pldmgr_notify("Updating Payload Manager App...");
+    pldmgr_notify("Updating evoX-CoreOS App...");
   } else {
     pldmgr_log("[PLDMGR] Installing browser launcher app (%s)...\n", title_id);
-    pldmgr_notify("Installing Payload Manager App...");
+    pldmgr_notify("Installing evoX-CoreOS App...");
   }
 
   int err;
@@ -173,7 +173,7 @@ int pldmgr_install_app_if_needed(void) {
   }
 
   pldmgr_log("[PLDMGR] Launcher app installed successfully.\n");
-  pldmgr_notify("Payload Manager App Ready!");
+  pldmgr_notify("evoX-CoreOS App Ready!");
   
   sceAppInstUtilTerminate();
   return 0;
