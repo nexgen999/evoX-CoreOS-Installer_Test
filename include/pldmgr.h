@@ -38,13 +38,12 @@
 #define ROUTE_PROCESS_KILL "/process_kill"
 #define ROUTE_HISTORY_LIST "/history_list"
 
-#define MENU_VERSION "0.5.0F"
-#define AUTOLOAD_CONFIG_PATH "/data/evox/config/autoload.txt"
-#define PLDMGR_CONFIG_PATH "/data/evox/config/evox_config.txt"
-#define REPOSITORY_CACHE_PATH "/data/evox/config/repository_cache.json"
-#define PAYLOADS_STORAGE_DIR "/data/evox/payloads"
-#define REPOSITORY_SOURCE_URL                                                  \
-  "https://nexgen999.github.io/evoX-CoreOS/json/payloads.json"
+#define MENU_VERSION "0.5.0"
+#define AUTOLOAD_CONFIG_PATH "/data/pldmgr/autoload.txt"
+#define PLDMGR_CONFIG_PATH "/data/pldmgr/pldmgr_config.txt"
+#define REPOSITORY_CACHE_PATH "/data/pldmgr/repository_cache.json"
+#define PAYLOADS_STORAGE_DIR "/data/pldmgr/payloads"
+#define REPOSITORY_SOURCE_URL "https://nexgen999.github.io/evoX-CoreOS/json/payloads.json"
 #define REPOSITORY_REFRESH_INTERVAL_SEC 86400
 
 /* Logging (implementation in log_server.c) */
@@ -56,15 +55,15 @@ int pldmgr_server_is_active();
 #include "utils.h"
 
 /* Paths */
-#define BASE_DATA_DIR "/data/evox"
-#define SOURCES_CONFIG_PATH "/data/evox/config/sources.json"
+#define BASE_DATA_DIR "/data/pldmgr"
+#define SOURCES_CONFIG_PATH "/data/pldmgr/sources.json"
 #define MAX_SOURCES 50
 
 /* Scan Locations (Internal + 8 USB ports) */
 static const char *SCAN_DIRS[] = {
-    "/data/evox",     "/mnt/usb0/evox", "/mnt/usb1/evox",
-    "/mnt/usb2/evox", "/mnt/usb3/evox", "/mnt/usb4/evox",
-    "/mnt/usb5/evox", "/mnt/usb6/evox", "/mnt/usb7/evox"};
+    "/data/pldmgr",     "/mnt/usb0/pldmgr", "/mnt/usb1/pldmgr",
+    "/mnt/usb2/pldmgr", "/mnt/usb3/pldmgr", "/mnt/usb4/pldmgr",
+    "/mnt/usb5/pldmgr", "/mnt/usb6/pldmgr", "/mnt/usb7/pldmgr"};
 #define SCAN_DIRS_COUNT 9
 
 /* Messages */
